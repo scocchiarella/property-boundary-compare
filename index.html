@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lot Overlay — Mallory Rd vs N Capitol Ave</title>
+<style>
+  :root{
+    --paper:#F3F4EF; --panel:#FBFBF8; --ink:#22302B; --muted:#6B7A72;
+    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E;
+    --focus:#2E6F8E; --is-dark:0;
+    --shadow:0 1px 2px rgba(34,48,43,.08), 0 4px 14px rgba(34,48,43,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#151A18; --panel:#1C2320; --ink:#E7ECE6; --muted:#93A099;
+      --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC;
+      --focus:#5FA8CC; --is-dark:1;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#151A18; --panel:#1C2320; --ink:#E7ECE6; --muted:#93A099;
+    --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC;
+    --focus:#5FA8CC; --is-dark:1;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  }
+  :root[data-theme="light"]{
+    --paper:#F3F4EF; --panel:#FBFBF8; --ink:#22302B; --muted:#6B7A72;
+    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E;
+    --focus:#2E6F8E; --is-dark:0;
+    --shadow:0 1px 2px rgba(34,48,43,.08), 0 4px 14px rgba(34,48,43,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+  .disp{font-family:Futura,"Avenir Next","Century Gothic","Segoe UI",system-ui,sans-serif}
+  .mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-variant-numeric:tabular-nums}
+
+  header{
+    display:flex; align-items:baseline; gap:18px; flex-wrap:wrap;
+    padding:12px 18px 10px; border-bottom:1px solid var(--edge); background:var(--panel);
+  }
+  header h1{margin:0; font-size:17px; letter-spacing:.04em; text-transform:uppercase}
+  header h1 .vs{color:var(--muted); font-weight:400; margin:0 4px}
+  header h1 .pa{color:var(--a)} header h1 .pb{color:var(--b)}
+  #stats{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted)}
+  #stats b{color:var(--ink); font-weight:600}
+  #stats .dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:1px}
+
+  main{flex:1; display:grid; grid-template-columns:338px 1fr; min-height:0}
+  #side{
+    overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px;
+    border-right:1px solid var(--edge); background:var(--panel);
+  }
+  .card{border:1px solid var(--edge); border-radius:8px; padding:12px; background:var(--paper); box-shadow:var(--shadow)}
+  .card h2{
+    margin:0 0 8px; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); display:flex; align-items:center; gap:8px;
+  }
+  .swatch{width:12px; height:12px; border-radius:3px; flex:none}
+  .card h2 input[type=text]{
+    flex:1; min-width:0; border:none; background:transparent; color:var(--ink);
+    font:600 13px/1.2 system-ui,sans-serif; letter-spacing:.02em; padding:2px 4px; border-radius:4px;
+  }
+  .card h2 input[type=text]:hover{background:color-mix(in srgb, var(--muted) 12%, transparent)}
+  .row{display:flex; align-items:center; gap:8px; margin:7px 0}
+  .row label{width:66px; flex:none; font-size:12px; color:var(--muted)}
+  .row input[type=range]{flex:1; accent-color:var(--focus); min-width:0}
+  .row input[type=number]{
+    width:64px; flex:none; padding:3px 6px; border:1px solid var(--edge); border-radius:5px;
+    background:var(--panel); color:var(--ink); font-size:12.5px;
+  }
+  .row .val{width:46px; flex:none; text-align:right; font-size:12px; color:var(--muted)}
+  .btns{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
+  button{
+    padding:5px 10px; border:1px solid var(--edge); border-radius:6px; cursor:pointer;
+    background:var(--panel); color:var(--ink); font-size:12.5px;
+  }
+  button:hover{border-color:var(--muted)}
+  button:disabled{opacity:.5; cursor:default}
+  button:focus-visible, input:focus-visible, textarea:focus-visible{outline:2px solid var(--focus); outline-offset:1px}
+  button.primary{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  button[aria-pressed="true"]{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .readout{margin-top:9px; font-size:12px; color:var(--muted); display:grid; grid-template-columns:auto 1fr; gap:2px 10px}
+  .readout b{color:var(--ink); font-weight:600}
+  .note{margin-top:8px; font-size:11.5px; color:var(--muted); font-style:italic}
+  .check{display:flex; align-items:center; gap:7px; font-size:12.5px; margin:5px 0; cursor:pointer}
+  .check input{accent-color:var(--focus)}
+  .rectset{display:none; margin-top:8px; padding-top:8px; border-top:1px dashed var(--edge); align-items:center; gap:6px; font-size:12px; color:var(--muted); flex-wrap:wrap}
+  .rectset.on{display:flex}
+  .rectset input{width:60px; padding:3px 6px; border:1px solid var(--edge); border-radius:5px; background:var(--panel); color:var(--ink)}
+
+  details.card summary{cursor:pointer; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600}
+  details.card ol{margin:10px 0 8px; padding-left:20px; font-size:12.5px; color:var(--muted)}
+  details.card ol li{margin:5px 0}
+  details.card ol li b{color:var(--ink)}
+  .ll{display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; align-items:center}
+  .ll input{flex:1; min-width:90px; padding:5px 8px; border:1px solid var(--edge); border-radius:6px; background:var(--panel); color:var(--ink); font-size:12.5px}
+  #lookupLink{font-size:12.5px; color:var(--focus); word-break:break-all; display:none; margin:6px 0}
+  textarea{
+    width:100%; height:84px; resize:vertical; padding:7px 9px; border:1px solid var(--edge);
+    border-radius:6px; background:var(--panel); color:var(--ink); font-size:11.5px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+  }
+  .status{font-size:12px; color:var(--muted); margin-top:6px; display:none}
+  .status.err{color:#B23A3A}
+  :root[data-theme="dark"] .status.err{color:#F09B9B}
+  @media (prefers-color-scheme: dark){ .status.err{color:#F09B9B} }
+  #importErr{color:#B23A3A; font-size:12px; margin-top:6px; display:none}
+  :root[data-theme="dark"] #importErr{color:#F09B9B}
+  @media (prefers-color-scheme: dark){ #importErr{color:#F09B9B} }
+
+  #stage{position:relative; min-width:0; min-height:0}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab}
+  canvas.dragging{cursor:grabbing}
+  #zoomctl{position:absolute; right:14px; bottom:16px; display:flex; flex-direction:column; gap:6px}
+  #zoomctl button{width:34px; height:34px; font-size:17px; padding:0; box-shadow:var(--shadow)}
+  #hint{
+    position:absolute; left:14px; top:12px; font-size:11.5px; color:var(--muted);
+    background:color-mix(in srgb, var(--panel) 82%, transparent); padding:5px 9px; border-radius:6px;
+    pointer-events:none; max-width:340px;
+  }
+  footer{
+    padding:7px 18px; border-top:1px solid var(--edge); background:var(--panel);
+    font-size:11.5px; color:var(--muted);
+  }
+  footer a{color:var(--focus)}
+  @media (max-width:860px){
+    body{overflow:auto; height:auto}
+    main{grid-template-columns:1fr; grid-template-rows:60vh auto}
+    #stage{order:-1; height:60vh}
+    #side{border-right:none; border-top:1px solid var(--edge); max-height:none}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    button{transition:border-color .12s, background .12s}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 class="disp"><span class="pa" id="hNameA">Mallory Rd</span><span class="vs">vs</span><span class="pb" id="hNameB">N Capitol Ave</span></h1>
+  <div id="stats" class="mono">
+    <span><span class="dot" style="background:var(--a)"></span><b id="statA">–</b></span>
+    <span><span class="dot" style="background:var(--b)"></span><b id="statB">–</b></span>
+    <span id="statRatio"></span>
+  </div>
+</header>
+
+<main>
+  <div id="side">
+    <div class="card" id="cardA"></div>
+    <div class="card" id="cardB"></div>
+
+    <div class="card">
+      <h2>View</h2>
+      <label class="check"><input type="checkbox" id="ckGrid" checked> Grid</label>
+      <label class="check"><input type="checkbox" id="ckCompass" checked> Per-lot north arrows</label>
+      <label class="check"><input type="checkbox" id="ckLengths" checked> Edge lengths (ft)</label>
+      <label class="check"><input type="checkbox" id="ckSat"> Satellite imagery (clipped to each lot)</label>
+      <div class="note" style="margin-top:4px">When satellite is on, each lot's Opacity slider controls its imagery instead of the color fill.</div>
+      <div class="btns">
+        <button id="btnStack">Stack lots</button>
+        <button id="btnSide">Side by side</button>
+        <button id="btnFit">Zoom to fit</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Address lookup (Indiana)</h2>
+      <div class="ll">
+        <input id="addrInput" placeholder="9034 W Mallory Rd, Bloomington" aria-label="Indiana street address">
+      </div>
+      <div class="btns">
+        <button id="fetchA">Fetch parcel → <span style="color:var(--a)">■</span> A</button>
+        <button id="fetchB">Fetch parcel → <span style="color:var(--b)">■</span> B</button>
+      </div>
+      <div id="addrStatus" class="status" role="status"></div>
+      <div class="note">Queries the official IndianaMap parcel layer live (needs internet). Falls back to geocoding if the address text doesn't match a parcel record.</div>
+    </div>
+
+    <details class="card" id="importCard">
+      <summary>Paste-import boundaries (fallback)</summary>
+      <ol>
+        <li>In <b>Google Maps</b>, right-click the middle of the property and click the coordinates to copy them.</li>
+        <li>Paste them here and build the lookup link:</li>
+      </ol>
+      <div class="ll">
+        <input id="llInput" placeholder="39.2213, -86.6304" aria-label="Latitude, longitude">
+        <button id="btnLookup">Build lookup link</button>
+      </div>
+      <a id="lookupLink" target="_blank" rel="noopener">Open parcel lookup (IndianaMap) ↗</a>
+      <ol start="3">
+        <li>The link opens the official Indiana parcel layer and returns that parcel's <b>GeoJSON</b>. Select all, copy, and paste it below. (Any GeoJSON or ArcGIS-JSON polygon works too.)</li>
+      </ol>
+      <textarea id="importText" placeholder='{"type":"FeatureCollection","features":[…]}' aria-label="Paste boundary JSON"></textarea>
+      <div class="btns">
+        <button id="impA">Import as <span style="color:var(--a)">■</span> A</button>
+        <button id="impB">Import as <span style="color:var(--b)">■</span> B</button>
+      </div>
+      <div id="importErr" role="alert"></div>
+    </details>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hint">Drag a lot to move it · drag empty paper to pan · scroll or pinch to zoom · click a lot, then <span class="mono">[ ]</span> rotates, arrows nudge</div>
+    <div id="zoomctl">
+      <button id="zin" aria-label="Zoom in">+</button>
+      <button id="zout" aria-label="Zoom out">−</button>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Boundaries are the <b>official surveyed parcels</b> from the IndianaMap statewide layer (Parcel_Boundaries_of_Indiana_Current, fetched 2026-07-18), shown at true relative scale in feet. Each lot's north arrow rotates with it. Satellite imagery © Esri World Imagery · geocoding © OpenStreetMap/Nominatim.
+</footer>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const SQFT_ACRE = 43560;
+const R_FT = 20925646.3;
+const MERC_R = 6378137;
+const PARCEL_URL = 'https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_Current/FeatureServer/0/query';
+const TILE_URL = (z,y,x)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+
+// ---------- geometry ----------
+const areaOf = poly => Math.abs(poly.reduce((a,p,i)=>{const q=poly[(i+1)%poly.length];return a+p.x*q.y-q.x*p.y;},0))/2;
+const perimOf = poly => poly.reduce((a,p,i)=>{const q=poly[(i+1)%poly.length];return a+Math.hypot(q.x-p.x,q.y-p.y);},0);
+const centroidOf = poly => { let x=0,y=0; for(const p of poly){x+=p.x;y+=p.y;} return {x:x/poly.length,y:y/poly.length}; };
+
+// ring of [x,y] (lon/lat, or web-mercator meters) -> {pts: local feet centered on parcel, lat, lon: geo anchor of local origin}
+function ringToFeetGeo(ring){
+  let pts=ring.map(c=>({x:+c[0],y:+c[1]}));
+  const mx=Math.max(...pts.map(p=>Math.max(Math.abs(p.x),Math.abs(p.y))));
+  if(mx>400){ // web mercator meters -> lon/lat
+    pts=pts.map(p=>({x:p.x/MERC_R*180/Math.PI, y:(2*Math.atan(Math.exp(p.y/MERC_R))-Math.PI/2)*180/Math.PI}));
+  }
+  if(pts.length>3&&Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<1e-9) pts.pop(); // closing dup
+  const lat0=pts.reduce((a,p)=>a+p.y,0)/pts.length, lon0=pts.reduce((a,p)=>a+p.x,0)/pts.length;
+  const k=Math.PI/180*R_FT, cosl=Math.cos(lat0*Math.PI/180);
+  let ft=pts.map(p=>({x:(p.x-lon0)*cosl*k, y:(p.y-lat0)*k}));
+  const c=centroidOf(ft);
+  ft=ft.map(p=>({x:p.x-c.x,y:p.y-c.y}));
+  if(ft.length>2&&Math.hypot(ft[0].x-ft.at(-1).x,ft[0].y-ft.at(-1).y)<.5) ft.pop();
+  return {pts:ft, lat:lat0+c.y/k, lon:lon0+c.x/(cosl*k)};
+}
+
+// ---------- model ----------
+// Official IndianaMap parcel rings (WGS84 lon/lat), fetched 2026-07-18.
+const RAW = {
+  A:{ name:'9034 W Mallory Rd', id:'53-04-20-201-003.000-011',
+      ring:[[-86.6656214,39.2022878],[-86.665631,39.2029952],[-86.6667571,39.2029992],[-86.6672202,39.2030008],[-86.6677303,39.2022948],[-86.6656214,39.2022878]] },
+  B:{ name:'5120 N Capitol Ave', id:'53-04-11-302-004.000-013',
+      ring:[[-86.6091776,39.226041],[-86.6094884,39.2260508],[-86.609481,39.2253459],[-86.6093132,39.2252478],[-86.6089459,39.2251825],[-86.6089558,39.2260341],[-86.6091776,39.226041]] },
+};
+const gA=ringToFeetGeo(RAW.A.ring), gB=ringToFeetGeo(RAW.B.ring);
+const parcels = [
+  { key:'A', name:RAW.A.name, colorVar:'--a',
+    poly:gA.pts, geo:{lat:gA.lat,lon:gA.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
+    sat:null, satLoading:false, satError:false,
+    note:`Official parcel ${RAW.A.id} — IndianaMap current parcel layer.` },
+  { key:'B', name:RAW.B.name, colorVar:'--b',
+    poly:gB.pts, geo:{lat:gB.lat,lon:gB.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
+    sat:null, satLoading:false, satError:false,
+    note:`Official parcel ${RAW.B.id} — IndianaMap current parcel layer.` },
+];
+const view = { cx:0, cy:0, s:1 };           // s = px per ft
+const show = { grid:true, compass:true, lengths:true, sat:false };
+let selected = 0, needsDraw = true;
+const draw = () => { needsDraw = true; };
+
+function worldPts(p){
+  const r=p.rot*Math.PI/180, c=Math.cos(r), s=Math.sin(r);
+  return p.poly.map(v=>({x:v.x*c+v.y*s+p.pos.x, y:-v.x*s+v.y*c+p.pos.y}));
+}
+function toLocal(p, w){ // world point -> parcel local coords
+  const r=p.rot*Math.PI/180, c=Math.cos(r), s=Math.sin(r);
+  const x=w.x-p.pos.x, y=w.y-p.pos.y;
+  return {x:x*c-y*s, y:x*s+y*c};
+}
+const inPoly=(pt,poly)=>{let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];
+  if((a.y>pt.y)!==(b.y>pt.y)&&pt.x<(b.x-a.x)*(pt.y-a.y)/(b.y-a.y)+a.x)inside=!inside;}return inside;};
+function distSeg(p,a,b){const dx=b.x-a.x,dy=b.y-a.y,L=dx*dx+dy*dy;
+  const t=L?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/L)):0;
+  return {d:Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy)),t};}
+
+// ---------- satellite imagery ----------
+const lon2mx=lon=>lon*Math.PI/180*MERC_R;
+const lat2my=lat=>MERC_R*Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
+const mx2lon=x=>x/MERC_R*180/Math.PI;
+const my2lat=y=>(2*Math.atan(Math.exp(y/MERC_R))-Math.PI/2)*180/Math.PI;
+
+function loadTile(z,ty,tx){
+  return new Promise(res=>{
+    const im=new Image();
+    im.crossOrigin='anonymous';
+    im.onload=()=>res(im);
+    im.onerror=()=>res(null);
+    im.src=TILE_URL(z,ty,tx);
+  });
+}
+async function loadSat(p){
+  if(!p.geo||p.sat||p.satLoading||p.satError) return;
+  p.satLoading=true; draw();
+  try{
+    const k=Math.PI/180*R_FT, cosl=Math.cos(p.geo.lat*Math.PI/180);
+    const xs=p.poly.map(v=>v.x), ys=p.poly.map(v=>v.y);
+    let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+    const padX=(x1-x0)*.15+40, padY=(y1-y0)*.15+40;
+    x0-=padX; x1+=padX; y0-=padY; y1+=padY;
+    const f2lon=x=>p.geo.lon+x/(cosl*k), f2lat=y=>p.geo.lat+y/k;
+    const mx0=lon2mx(f2lon(x0)), mx1=lon2mx(f2lon(x1));
+    const my0=lat2my(f2lat(y0)), my1=lat2my(f2lat(y1));
+    const HALF=Math.PI*MERC_R;
+    let z=20, T, tx0,tx1,ty0,ty1;
+    do{ z--;
+      T=2*HALF/Math.pow(2,z);
+      tx0=Math.floor((mx0+HALF)/T); tx1=Math.floor((mx1+HALF)/T);
+      ty0=Math.floor((HALF-my1)/T); ty1=Math.floor((HALF-my0)/T);
+    }while(z>10 && (tx1-tx0+1)*(ty1-ty0+1)>36);
+    const c=document.createElement('canvas');
+    c.width=(tx1-tx0+1)*256; c.height=(ty1-ty0+1)*256;
+    const cx=c.getContext('2d');
+    const jobs=[];
+    for(let ty=ty0;ty<=ty1;ty++) for(let tx=tx0;tx<=tx1;tx++)
+      jobs.push(loadTile(z,ty,tx).then(im=>{ if(im) cx.drawImage(im,(tx-tx0)*256,(ty-ty0)*256); return !!im; }));
+    const oks=await Promise.all(jobs);
+    if(!oks.some(Boolean)) throw new Error('no tiles');
+    // image extents in local feet (top = north)
+    const imx0=tx0*T-HALF, imx1=(tx1+1)*T-HALF;
+    const imyT=HALF-ty0*T, imyB=HALF-(ty1+1)*T;
+    p.sat={
+      img:c,
+      fx0:(mx2lon(imx0)-p.geo.lon)*cosl*k,
+      fw:(mx2lon(imx1)-mx2lon(imx0))*cosl*k,
+      fyT:(my2lat(imyT)-p.geo.lat)*k,
+      fh:(my2lat(imyT)-my2lat(imyB))*k,
+    };
+  }catch(_){ p.satError=true; }
+  p.satLoading=false; draw();
+}
+function clearSat(p){ p.sat=null; p.satLoading=false; p.satError=false; if(show.sat) loadSat(p); }
+
+// ---------- canvas ----------
+const cv=$('#cv'), ctx=cv.getContext('2d');
+let cw=0, ch=0, dpr=1;
+function resize(){
+  const r=cv.getBoundingClientRect(); dpr=window.devicePixelRatio||1;
+  cw=r.width; ch=r.height; cv.width=Math.round(cw*dpr); cv.height=Math.round(ch*dpr); draw();
+}
+new ResizeObserver(resize).observe($('#stage'));
+const W2S=p=>({x:(p.x-view.cx)*view.s+cw/2, y:(view.cy-p.y)*view.s+ch/2});
+const S2W=p=>({x:(p.x-cw/2)/view.s+view.cx, y:view.cy-(p.y-ch/2)/view.s});
+const css=()=>getComputedStyle(document.documentElement);
+const colorOf=p=>css().getPropertyValue(p.colorVar).trim();
+
+function fitView(){
+  let xs=[],ys=[];
+  for(const p of parcels) if(p.visible) for(const w of worldPts(p)){xs.push(w.x);ys.push(w.y);}
+  if(!xs.length) return;
+  const x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  view.cx=(x0+x1)/2; view.cy=(y0+y1)/2;
+  view.s=Math.min((cw-140)/Math.max(40,x1-x0),(ch-140)/Math.max(40,y1-y0));
+  view.s=Math.max(.02,Math.min(20,view.s)); draw();
+}
+
+function render(){
+  const st=css(), dark=+st.getPropertyValue('--is-dark')>0;
+  const ink=st.getPropertyValue('--ink').trim(), muted=st.getPropertyValue('--muted').trim(),
+        line=st.getPropertyValue('--line').trim(), paper=st.getPropertyValue('--paper').trim();
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle=paper; ctx.fillRect(0,0,cw,ch);
+
+  // grid
+  if(show.grid){
+    let step=5; for(const s of [5,10,20,25,50,100,200,250,500,1000,2000,5000]){step=s; if(s*view.s>=42) break;}
+    const wl=S2W({x:0,y:ch}), wr=S2W({x:cw,y:0});
+    ctx.strokeStyle=line; ctx.lineWidth=1; ctx.beginPath();
+    for(let x=Math.floor(wl.x/step)*step;x<=wr.x;x+=step){const s=W2S({x,y:0}).x;ctx.moveTo(s,0);ctx.lineTo(s,ch);}
+    for(let y=Math.floor(wl.y/step)*step;y<=wr.y;y+=step){const s=W2S({x:0,y}).y;ctx.moveTo(0,s);ctx.lineTo(cw,s);}
+    ctx.stroke();
+  }
+
+  // satellite imagery: clipped to each lot, rides its rotation; opacity slider drives it
+  if(show.sat){
+    for(const p of parcels){
+      if(!p.visible||!p.geo) continue;
+      if(!p.sat&&!p.satLoading&&!p.satError) loadSat(p);
+      if(!p.sat) continue;
+      const pts=worldPts(p).map(W2S);
+      ctx.save();
+      ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); ctx.clip();
+      ctx.globalAlpha=p.opacity;
+      const th=p.rot*Math.PI/180, c=Math.cos(th), s=Math.sin(th);
+      const o=W2S(p.pos);
+      ctx.transform(c*view.s, s*view.s, s*view.s, -c*view.s, o.x, o.y);
+      ctx.scale(1,-1);
+      ctx.drawImage(p.sat.img, p.sat.fx0, -p.sat.fyT, p.sat.fw, p.sat.fh);
+      ctx.restore();
+    }
+  }
+
+  // fills (blend so overlap reads); skipped where imagery already fills the lot
+  ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
+  for(const p of parcels){
+    if(!p.visible) continue;
+    if(show.sat&&p.sat) continue;
+    const pts=worldPts(p).map(W2S);
+    ctx.globalAlpha=p.opacity; ctx.fillStyle=colorOf(p);
+    ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+
+  // strokes, labels, handles
+  parcels.forEach((p,idx)=>{
+    if(!p.visible) return;
+    const wpts=worldPts(p), pts=wpts.map(W2S), col=colorOf(p);
+    ctx.strokeStyle=col; ctx.lineWidth=idx===selected?2.5:1.5;
+    ctx.setLineDash(idx===selected?[]:[7,4]);
+    ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); ctx.stroke();
+    ctx.setLineDash([]);
+
+    const cs=W2S(centroidOf(wpts));
+    ctx.fillStyle=col; ctx.font='600 12px Futura, "Avenir Next", "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(p.name.toUpperCase(), cs.x, cs.y + (idx===0?-10:10));
+    if(show.sat&&p.satLoading){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('loading imagery…', cs.x, cs.y+(idx===0?-26:26));}
+    if(show.sat&&p.satError){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('imagery unavailable', cs.x, cs.y+(idx===0?-26:26));}
+
+    if(show.lengths && view.s>0.05){
+      ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillStyle=muted;
+      for(let i=0;i<p.poly.length;i++){
+        const a=p.poly[i], b=p.poly[(i+1)%p.poly.length];
+        const L=Math.hypot(b.x-a.x,b.y-a.y); if(L*view.s<34) continue;
+        const A=pts[i], B=pts[(i+1)%pts.length];
+        let ang=Math.atan2(B.y-A.y,B.x-A.x);
+        const mid={x:(A.x+B.x)/2,y:(A.y+B.y)/2};
+        const nx=-(B.y-A.y), ny=B.x-A.x, nl=Math.hypot(nx,ny)||1;
+        const out=(mid.x-cs.x)*nx+(mid.y-cs.y)*ny>0?1:-1;
+        ctx.save(); ctx.translate(mid.x+out*11*nx/nl, mid.y+out*11*ny/nl);
+        if(ang>Math.PI/2||ang<-Math.PI/2) ang+=Math.PI;
+        ctx.rotate(ang); ctx.fillText(Math.round(L)+'′',0,0); ctx.restore();
+      }
+    }
+    if(p.editing){
+      for(const q of pts){ ctx.fillStyle=paper; ctx.strokeStyle=col; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.rect(q.x-4.5,q.y-4.5,9,9); ctx.fill(); ctx.stroke(); }
+    }
+  });
+
+  // scale bar
+  {
+    let bar=10; for(const c of [10,20,50,100,200,500,1000,2000,5280]){bar=c; if(c*view.s>=90) break;}
+    const px=bar*view.s, x0=16, y0=ch-22;
+    ctx.strokeStyle=ink; ctx.fillStyle=ink; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x0,y0-5);ctx.lineTo(x0,y0);ctx.lineTo(x0+px,y0);ctx.lineTo(x0+px,y0-5); ctx.stroke();
+    ctx.font='11px ui-monospace, Menlo, monospace'; ctx.textAlign='left'; ctx.textBaseline='bottom';
+    ctx.fillText(bar===5280?'1 mile':bar.toLocaleString()+' ft', x0+4, y0-4);
+  }
+
+  // per-lot north arrows: each lot rotates independently, so each gets its own compass
+  if(show.compass){
+    parcels.forEach((p,idx)=>{
+      if(!p.visible) return;
+      const pts=worldPts(p).map(W2S);
+      const bx0=Math.min(...pts.map(q=>q.x)), bx1=Math.max(...pts.map(q=>q.x)),
+            by0=Math.min(...pts.map(q=>q.y));
+      const r=17;
+      let x0=idx===0? bx0-r-14 : bx1+r+14;
+      let y0=by0-r-8;
+      x0=Math.max(r+10,Math.min(cw-r-10,x0));
+      y0=Math.max(r+10,Math.min(ch-r-10,y0));
+      const th=p.rot*Math.PI/180;
+      const nx=Math.sin(th), ny=-Math.cos(th); // screen direction of true north for this lot
+      const col=colorOf(p);
+      ctx.strokeStyle=muted; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(x0,y0,r,0,7); ctx.stroke();
+      // south tail
+      ctx.strokeStyle=muted; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0-nx*(r-6),y0-ny*(r-6)); ctx.stroke();
+      // north arrow in the lot's color
+      ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+nx*(r-5),y0+ny*(r-5)); ctx.stroke();
+      const px=-ny, py=nx; // perpendicular
+      ctx.beginPath();
+      ctx.moveTo(x0+nx*(r-1),y0+ny*(r-1));
+      ctx.lineTo(x0+nx*(r-8)+px*4,y0+ny*(r-8)+py*4);
+      ctx.lineTo(x0+nx*(r-8)-px*4,y0+ny*(r-8)-py*4);
+      ctx.closePath(); ctx.fill();
+      ctx.font='600 11px Futura, "Avenir Next", system-ui, sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('N', x0+nx*(r+9), y0+ny*(r+9));
+    });
+  }
+}
+(function loop(){ if(needsDraw){needsDraw=false; render();} requestAnimationFrame(loop); })();
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+
+// ---------- readouts ----------
+const fmt=n=>Math.round(n).toLocaleString();
+function updateReadouts(){
+  const A=areaOf(parcels[0].poly), B=areaOf(parcels[1].poly);
+  $('#statA').textContent=`${fmt(A)} ft² · ${(A/SQFT_ACRE).toFixed(2)} ac`;
+  $('#statB').textContent=`${fmt(B)} ft² · ${(B/SQFT_ACRE).toFixed(2)} ac`;
+  const big=A>=B?parcels[0]:parcels[1], ratio=Math.max(A,B)/Math.max(1,Math.min(A,B));
+  $('#statRatio').textContent=`${big.name.split(' ').slice(-2).join(' ')} ≈ ${ratio.toFixed(1)}× larger`;
+  $('#hNameA').textContent=parcels[0].name; $('#hNameB').textContent=parcels[1].name;
+  parcels.forEach(p=>{
+    p.el.area.textContent=`${fmt(areaOf(p.poly))} ft² (${(areaOf(p.poly)/SQFT_ACRE).toFixed(2)} ac)`;
+    p.el.perim.textContent=`${fmt(perimOf(p.poly))} ft`;
+    p.el.note.textContent=p.note;
+  });
+}
+
+// ---------- parcel cards ----------
+const rect = (w,d) => [{x:-w/2,y:-d/2},{x:w/2,y:-d/2},{x:w/2,y:d/2},{x:-w/2,y:d/2}];
+function buildCard(p, idx, host){
+  host.innerHTML=`
+    <h2><span class="swatch" style="background:var(${p.colorVar})"></span>
+      <input type="text" value="${p.name}" aria-label="Property ${p.key} name">
+      <label class="check" style="margin:0"><input type="checkbox" ${p.visible?'checked':''} aria-label="Show property ${p.key}"> show</label>
+    </h2>
+    <div class="row"><label>Opacity</label><input type="range" min="5" max="100" value="${p.opacity*100}"><span class="val mono">${Math.round(p.opacity*100)}%</span></div>
+    <div class="row"><label>Rotation</label><input type="range" min="-180" max="180" value="${p.rot}" step="1"><input type="number" min="-180" max="180" value="${p.rot}" step="1" aria-label="Rotation degrees"></div>
+    <div class="btns">
+      <button data-act="edit" aria-pressed="false">Edit shape</button>
+      <button data-act="reset">Reset rotation</button>
+    </div>
+    <div class="rectset">
+      <span>Rectangle:</span>
+      <input data-r="w" type="number" min="1" value="100" aria-label="Width ft"> ×
+      <input data-r="d" type="number" min="1" value="150" aria-label="Depth ft"> ft
+      <button data-act="mkrect">Apply</button>
+      <span style="flex-basis:100%">Drag corners to reshape · double-click an edge to add a corner · double-click a corner to remove it.</span>
+    </div>
+    <div class="readout mono"><span>Area</span><b data-o="area"></b><span>Perimeter</span><b data-o="perim"></b></div>
+    <div class="note" data-o="note"></div>`;
+  p.el={
+    area:host.querySelector('[data-o=area]'), perim:host.querySelector('[data-o=perim]'),
+    note:host.querySelector('[data-o=note]'), rotSlider:host.querySelector('input[type=range][min="-180"]'),
+    rotNum:host.querySelector('input[type=number][min="-180"]'), editBtn:host.querySelector('[data-act=edit]'),
+    rectset:host.querySelector('.rectset'), nameInput:host.querySelector('h2 input[type=text]'),
+  };
+  p.el.nameInput.addEventListener('input',e=>{p.name=e.target.value||p.key; updateReadouts(); draw();});
+  host.querySelector('h2 input[type=checkbox]').addEventListener('change',e=>{p.visible=e.target.checked; draw();});
+  const [opS]=host.querySelectorAll('input[type=range]');
+  opS.addEventListener('input',e=>{p.opacity=e.target.value/100; e.target.nextElementSibling.textContent=e.target.value+'%'; draw();});
+  const setRot=v=>{p.rot=((+v+540)%360)-180; p.el.rotSlider.value=p.rot; p.el.rotNum.value=p.rot; draw();};
+  p.setRot=setRot;
+  p.el.rotSlider.addEventListener('input',e=>setRot(e.target.value));
+  p.el.rotNum.addEventListener('input',e=>setRot(e.target.value));
+  host.querySelector('[data-act=reset]').addEventListener('click',()=>setRot(0));
+  p.el.editBtn.addEventListener('click',()=>{
+    p.editing=!p.editing; p.el.editBtn.setAttribute('aria-pressed',p.editing);
+    p.el.rectset.classList.toggle('on',p.editing); selected=idx; draw();
+  });
+  host.querySelector('[data-act=mkrect]').addEventListener('click',()=>{
+    const w=+host.querySelector('[data-r=w]').value||100, d=+host.querySelector('[data-r=d]').value||150;
+    p.poly=rect(w,d); p.geo=null; clearSat(p);
+    p.note=`Custom rectangle ${w} × ${d} ft (no geo reference — satellite unavailable).`;
+    updateReadouts(); draw();
+  });
+  host.addEventListener('pointerdown',()=>{selected=idx; draw();});
+}
+buildCard(parcels[0],0,$('#cardA'));
+buildCard(parcels[1],1,$('#cardB'));
+
+// ---------- view buttons ----------
+$('#ckGrid').addEventListener('change',e=>{show.grid=e.target.checked;draw();});
+$('#ckCompass').addEventListener('change',e=>{show.compass=e.target.checked;draw();});
+$('#ckLengths').addEventListener('change',e=>{show.lengths=e.target.checked;draw();});
+$('#ckSat').addEventListener('change',e=>{
+  show.sat=e.target.checked;
+  if(show.sat) parcels.forEach(p=>{ if(p.geo&&!p.sat) loadSat(p); });
+  draw();
+});
+$('#btnFit').addEventListener('click',fitView);
+$('#btnStack').addEventListener('click',()=>{parcels[1].pos={...parcels[0].pos}; fitView();});
+$('#btnSide').addEventListener('click',()=>{
+  const wA=worldPts(parcels[0]), wB=worldPts(parcels[1]);
+  const spanA=Math.max(...wA.map(p=>p.x))-Math.min(...wA.map(p=>p.x));
+  const spanB=Math.max(...wB.map(p=>p.x))-Math.min(...wB.map(p=>p.x));
+  parcels[1].pos={x:parcels[0].pos.x+spanA/2+spanB/2+40, y:parcels[0].pos.y}; fitView();
+});
+const zoomAt=(f,sx,sy)=>{
+  const w=S2W({x:sx,y:sy});
+  view.s=Math.max(.02,Math.min(20,view.s*f));
+  const w2=S2W({x:sx,y:sy}); view.cx+=w.x-w2.x; view.cy+=w.y-w2.y; draw();
+};
+$('#zin').addEventListener('click',()=>zoomAt(1.3,cw/2,ch/2));
+$('#zout').addEventListener('click',()=>zoomAt(1/1.3,cw/2,ch/2));
+
+// ---------- pointer interaction ----------
+const pointers=new Map();
+let drag=null; // {mode:'pan'|'parcel'|'vertex', idx, vi, last:{x,y}} ; pinch:{d,cx,cy}
+let pinch=null;
+function pick(sp){
+  // vertex first (editing parcels), topmost parcel second
+  for(let i=parcels.length-1;i>=0;i--){const p=parcels[i];
+    if(!p.visible||!p.editing) continue;
+    const pts=worldPts(p).map(W2S);
+    for(let v=0;v<pts.length;v++) if(Math.hypot(pts[v].x-sp.x,pts[v].y-sp.y)<11) return {mode:'vertex',idx:i,vi:v};
+  }
+  for(let i=parcels.length-1;i>=0;i--){const p=parcels[i];
+    if(p.visible&&inPoly(sp,worldPts(p).map(W2S))) return {mode:'parcel',idx:i};
+  }
+  return {mode:'pan'};
+}
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  const sp={x:e.offsetX,y:e.offsetY};
+  pointers.set(e.pointerId,sp);
+  if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    pinch={d:Math.hypot(a.x-b.x,a.y-b.y)}; drag=null; return;
+  }
+  drag={...pick(sp), last:sp};
+  if(drag.mode!=='pan'){selected=drag.idx; draw();}
+  cv.classList.add('dragging');
+});
+cv.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId)) return;
+  const sp={x:e.offsetX,y:e.offsetY};
+  pointers.set(e.pointerId,sp);
+  if(pinch&&pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(pinch.d>0) zoomAt(d/pinch.d,(a.x+b.x)/2,(a.y+b.y)/2);
+    pinch.d=d; return;
+  }
+  if(!drag) return;
+  const dx=sp.x-drag.last.x, dy=sp.y-drag.last.y; drag.last=sp;
+  if(drag.mode==='pan'){ view.cx-=dx/view.s; view.cy+=dy/view.s; }
+  else if(drag.mode==='parcel'){ const p=parcels[drag.idx]; p.pos.x+=dx/view.s; p.pos.y-=dy/view.s; }
+  else if(drag.mode==='vertex'){ const p=parcels[drag.idx]; p.poly[drag.vi]=toLocal(p,S2W(sp)); updateReadouts(); }
+  draw();
+});
+const endPtr=e=>{pointers.delete(e.pointerId); if(pointers.size<2)pinch=null; if(!pointers.size){drag=null; cv.classList.remove('dragging');}};
+cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('wheel',e=>{e.preventDefault(); zoomAt(Math.pow(1.0015,-e.deltaY),e.offsetX,e.offsetY);},{passive:false});
+cv.addEventListener('dblclick',e=>{
+  const sp={x:e.offsetX,y:e.offsetY};
+  for(let i=parcels.length-1;i>=0;i--){
+    const p=parcels[i]; if(!p.visible||!p.editing) continue;
+    const pts=worldPts(p).map(W2S);
+    for(let v=0;v<pts.length;v++) if(Math.hypot(pts[v].x-sp.x,pts[v].y-sp.y)<11){
+      if(p.poly.length>3){p.poly.splice(v,1); p.note='Custom shape.'; updateReadouts(); draw();} return;
+    }
+    for(let v=0;v<pts.length;v++){
+      const r=distSeg(sp,pts[v],pts[(v+1)%pts.length]);
+      if(r.d<9){p.poly.splice(v+1,0,toLocal(p,S2W(sp))); p.note='Custom shape.'; updateReadouts(); draw(); return;}
+    }
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  const p=parcels[selected]; if(!p) return;
+  const step=e.shiftKey?10:1, rstep=e.shiftKey?15:1;
+  const k=e.key;
+  if(k==='ArrowLeft')p.pos.x-=step; else if(k==='ArrowRight')p.pos.x+=step;
+  else if(k==='ArrowUp')p.pos.y+=step; else if(k==='ArrowDown')p.pos.y-=step;
+  else if(k==='[')p.setRot(p.rot-rstep); else if(k===']')p.setRot(p.rot+rstep);
+  else return;
+  e.preventDefault(); draw();
+});
+
+// ---------- address lookup ----------
+const addrStatus=$('#addrStatus');
+function setStatus(msg,isErr){
+  addrStatus.style.display=msg?'block':'none';
+  addrStatus.textContent=msg||'';
+  addrStatus.classList.toggle('err',!!isErr);
+}
+const DIRWORDS={NORTH:'N',SOUTH:'S',EAST:'E',WEST:'W',NORTHEAST:'NE',NORTHWEST:'NW',SOUTHEAST:'SE',SOUTHWEST:'SW'};
+const SUFFIXES=new Set(['RD','ROAD','ST','STREET','AVE','AVENUE','AV','DR','DRIVE','LN','LANE','CT','COURT','BLVD','BOULEVARD','PIKE','PK','WAY','TRL','TRAIL','CIR','CIRCLE','PL','PLACE','HWY','HIGHWAY','TER','TERRACE','LOOP','RUN','PASS','XING','CROSSING']);
+function normalizeAddr(q){
+  const parts=q.split(',').map(s=>s.trim()).filter(Boolean);
+  const city=(parts[1]||'').toUpperCase()
+    .replace(/\bIN(DIANA)?\b.*$/,'').replace(/\d{5}(-\d{4})?/,'').trim();
+  let words=(parts[0]||'').toUpperCase().replace(/[.#]/g,'').split(/\s+/).filter(Boolean)
+    .map(w=>DIRWORDS[w]||w);
+  if(!words.length||!/^\d+$/.test(words[0])) return {city};
+  if(words.length>2&&SUFFIXES.has(words[words.length-1])) words=words.slice(0,-1);
+  return {numStreet:words.join(' '), city};
+}
+async function queryParcels(params){
+  const u=new URL(PARCEL_URL);
+  Object.entries({outFields:'*',returnGeometry:'true',outSR:'4326',f:'geojson',...params})
+    .forEach(([k,v])=>u.searchParams.set(k,v));
+  const r=await fetch(u);
+  if(!r.ok) throw new Error('Parcel server error ('+r.status+').');
+  const j=await r.json();
+  return j.features||[];
+}
+async function geocode(q){
+  const full=/\bIN\b|INDIANA/i.test(q)?q:q+', Indiana';
+  const u='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q='+encodeURIComponent(full);
+  const r=await fetch(u);
+  if(!r.ok) throw new Error('Geocoder error ('+r.status+').');
+  const j=await r.json();
+  if(!j.length) throw new Error('Address not found by geocoder.');
+  return {lat:+j[0].lat, lon:+j[0].lon};
+}
+function titleCase(s){return s.replace(/\w+/g,w=>w.length>2||/^\d/.test(w)?w[0].toUpperCase()+w.slice(1).toLowerCase():w.toUpperCase());}
+function applyParcelFeature(p, feat, sourceNote){
+  const rings=[];
+  const g=feat.geometry;
+  if(g.type==='Polygon') rings.push(g.coordinates[0]);
+  else if(g.type==='MultiPolygon') g.coordinates.forEach(pg=>rings.push(pg[0]));
+  if(!rings.length) throw new Error('Parcel had no polygon geometry.');
+  let best=rings[0],bestA=0;
+  for(const r of rings){const a=areaOf(r.map(c=>({x:+c[0],y:+c[1]})));if(a>bestA){bestA=a;best=r;}}
+  const gg=ringToFeetGeo(best);
+  p.poly=gg.pts; p.geo={lat:gg.lat,lon:gg.lon};
+  p.setRot(0);
+  const pr=feat.properties||{};
+  const addr=pr.dlgf_prop_address?titleCase(pr.dlgf_prop_address):null;
+  if(addr){ p.name=addr; if(p.el&&p.el.nameInput) p.el.nameInput.value=addr; }
+  p.note=`Official parcel ${pr.parcel_id||pr.state_parcel_id||''} — IndianaMap current parcel layer${sourceNote||''}.`;
+  clearSat(p);
+  updateReadouts(); fitView();
+}
+async function lookupAddress(idx){
+  const q=$('#addrInput').value.trim();
+  if(!q){ setStatus('Type an Indiana street address first.',true); return; }
+  const btns=[$('#fetchA'),$('#fetchB')]; btns.forEach(b=>b.disabled=true);
+  try{
+    setStatus('Searching the parcel layer by address…');
+    const norm=normalizeAddr(q);
+    let feats=[], how='';
+    if(norm.numStreet){
+      let where=`UPPER(dlgf_prop_address) LIKE '${norm.numStreet.replace(/'/g,"''")} %' OR UPPER(dlgf_prop_address) = '${norm.numStreet.replace(/'/g,"''")}'`;
+      if(norm.city) where=`(${where}) AND UPPER(dlgf_prop_address_city)='${norm.city.replace(/'/g,"''")}'`;
+      feats=await queryParcels({where});
+    }
+    if(!feats.length){
+      setStatus('No attribute match — geocoding the address…');
+      const pt=await geocode(q);
+      feats=await queryParcels({
+        geometry:`${pt.lon},${pt.lat}`, geometryType:'esriGeometryPoint',
+        inSR:'4326', spatialRel:'esriSpatialRelIntersects',
+      });
+      how=' (located by geocoded point — verify the returned address matches)';
+      if(!feats.length) throw new Error('Geocoded the address, but no parcel exists at that point.');
+    }
+    applyParcelFeature(parcels[idx], feats[0], how);
+    const shown=parcels[idx].name;
+    setStatus(feats.length>1
+      ? `${feats.length} parcels matched — loaded "${shown}"${how}. Refine the address if that's not the one.`
+      : `Loaded "${shown}"${how}.`);
+  }catch(err){
+    setStatus((err&&err.message)||'Lookup failed — check the address and your connection.',true);
+  }finally{
+    btns.forEach(b=>b.disabled=false);
+  }
+}
+$('#fetchA').addEventListener('click',()=>lookupAddress(0));
+$('#fetchB').addEventListener('click',()=>lookupAddress(1));
+$('#addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupAddress(selected); });
+
+// ---------- paste import (fallback) ----------
+$('#btnLookup').addEventListener('click',()=>{
+  const m=$('#llInput').value.match(/(-?\d+\.?\d*)\s*[, ]\s*(-?\d+\.?\d*)/);
+  const err=$('#importErr');
+  if(!m){err.style.display='block'; err.textContent='Enter coordinates like: 39.2213, -86.6304'; return;}
+  err.style.display='none';
+  let lat=+m[1], lon=+m[2];
+  if(Math.abs(lat)>90&&Math.abs(lon)<=90)[lat,lon]=[lon,lat];
+  const a=$('#lookupLink');
+  a.href=`${PARCEL_URL}?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&f=geojson`;
+  a.style.display='block';
+});
+function extractRings(o,acc){
+  if(!o||typeof o!=='object') return;
+  if(Array.isArray(o.features)) o.features.forEach(f=>extractRings(f,acc));
+  if(o.geometry) extractRings(o.geometry,acc);
+  if(Array.isArray(o.rings)) o.rings.forEach(r=>acc.push(r));
+  if(o.type==='Polygon'&&o.coordinates) acc.push(o.coordinates[0]);
+  if(o.type==='MultiPolygon'&&o.coordinates) o.coordinates.forEach(pg=>acc.push(pg[0]));
+}
+function doImport(idx){
+  const err=$('#importErr'), txt=$('#importText').value.trim();
+  err.style.display='none';
+  try{
+    let rings=[];
+    if(txt[0]==='{'||txt[0]==='['){ extractRings(JSON.parse(txt),rings); }
+    else{ // raw "lat, lon" lines
+      const nums=txt.match(/-?\d+\.\d+/g)||[];
+      const ring=[]; for(let i=0;i+1<nums.length;i+=2){
+        let a=+nums[i],b=+nums[i+1];
+        if(Math.abs(a)<=90&&Math.abs(b)>90)[a,b]=[b,a]; // lat,lon -> lon,lat
+        ring.push([a,b]);
+      }
+      if(ring.length>=3) rings.push(ring);
+    }
+    rings=rings.filter(r=>Array.isArray(r)&&r.length>=3);
+    if(!rings.length) throw 0;
+    let best=rings[0],bestA=0;
+    for(const r of rings){const a=areaOf(r.map(c=>({x:+c[0],y:+c[1]})));if(a>bestA){bestA=a;best=r;}}
+    const p=parcels[idx];
+    const gg=ringToFeetGeo(best);
+    p.poly=gg.pts; p.geo={lat:gg.lat,lon:gg.lon};
+    p.rot=0; p.setRot(0);
+    p.note='Imported boundary (true shape, oriented to true north).';
+    clearSat(p);
+    updateReadouts(); fitView();
+  }catch(_){
+    err.style.display='block';
+    err.textContent="Couldn't read that. Paste GeoJSON, ArcGIS JSON with \"rings\", or plain lat/lon pairs (3+ points).";
+  }
+}
+$('#impA').addEventListener('click',()=>doImport(0));
+$('#impB').addEventListener('click',()=>doImport(1));
+
+// ---------- init ----------
+updateReadouts();
+resize();
+requestAnimationFrame(()=>{resize(); fitView();});
+})();
+</script>
+
+</body>
+</html>

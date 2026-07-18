@@ -7,7 +7,7 @@ Preloaded comparison: **9034 W Mallory Rd** (parcel 53-04-20-201-003.000-011, �
 ## Features
 
 - Overlay two lot boundaries at shared scale (feet), with per-lot opacity, show/hide, rotation, and drag-to-position
-- **Satellite imagery toggle**: Esri World Imagery clipped to each lot's boundary, riding its rotation — when on, each lot's Opacity slider controls its imagery. Lets you compare what's actually *on* the land (wooded strips, clearings, outbuildings) at true relative scale
+- **Lot fill switcher — Color / Satellite / Street map**: imagery is clipped to each lot's boundary and rides its rotation; whichever fill is active, each lot's Opacity slider controls it. Satellite (Esri World Imagery) shows what's actually *on* the land (wooded strips, clearings, outbuildings); Street map shows road context and **building outlines** (OpenStreetMap by default — set `GOOGLE_KEY` in `index.html` to a referrer-restricted [Map Tiles API](https://developers.google.com/maps/documentation/tile) key to use Google roadmap tiles instead, which have the most complete house footprints)
 - **Per-lot north arrows**: each lot rotates independently, so each gets its own compass arrow showing which way true north points for that lot — useful for thinking about sun exposure / solar potential while shapes are rotated to align
 - **Address lookup**: type any Indiana address and fetch its official parcel boundary live from the IndianaMap FeatureServer (attribute match first, geocode + point-intersect fallback via Nominatim). Needs internet; works from the hosted page or a local copy
 - Paste-import fallback: paste GeoJSON, ArcGIS JSON (`rings`), or raw lat/lon pairs. WGS84 and Web Mercator are auto-projected to local feet
@@ -24,4 +24,20 @@ With a lot selected (click it): arrow keys nudge 1 ft (Shift = 10 ft), `[` / `]`
 
 - Parcel boundaries: [IndianaMap](https://www.indianamap.org/) `Parcel_Boundaries_of_Indiana_Current` FeatureServer (gisdata.in.gov)
 - Satellite imagery: Esri World Imagery tile service
+- Street map: OpenStreetMap standard tiles, or Google Map Tiles API (roadmap) when `GOOGLE_KEY` is set
 - Geocoding fallback: OpenStreetMap Nominatim
+
+## Optional: Google street tiles
+
+OSM already shows building outlines for most of Bloomington, but Google's roadmap tiles have the most complete house footprints. To switch the street layer to Google:
+
+```sh
+gcloud auth login
+gcloud services enable tile.googleapis.com --project YOUR_PROJECT   # needs billing enabled
+gcloud services api-keys create --display-name="property-boundary-compare" \
+  --api-target=service=tile.googleapis.com \
+  --allowed-referrers="https://scocchiarella.github.io/*" \
+  --project YOUR_PROJECT
+```
+
+Put the returned `keyString` in the `GOOGLE_KEY` constant near the top of the `<script>` in `index.html`. The referrer restriction makes the key safe to commit — it only works from the Pages site.

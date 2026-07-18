@@ -162,8 +162,11 @@
       <label class="check"><input type="checkbox" id="ckGrid" checked> Grid</label>
       <label class="check"><input type="checkbox" id="ckCompass" checked> Per-lot north arrows</label>
       <label class="check"><input type="checkbox" id="ckLengths" checked> Edge lengths (ft)</label>
-      <label class="check"><input type="checkbox" id="ckSat"> Satellite imagery (clipped to each lot)</label>
-      <div class="note" style="margin-top:4px">When satellite is on, each lot's Opacity slider controls its imagery instead of the color fill.</div>
+      <div style="margin:8px 0 2px; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)">Lot fill</div>
+      <label class="check"><input type="radio" name="layer" value="fill" checked> Color</label>
+      <label class="check"><input type="radio" name="layer" value="sat"> Satellite imagery</label>
+      <label class="check"><input type="radio" name="layer" value="street"> Street map (house outlines)</label>
+      <div class="note" style="margin-top:4px">Imagery is clipped to each lot and rotates with it. Each lot's Opacity slider controls whichever fill is active.</div>
       <div class="btns">
         <button id="btnStack">Stack lots</button>
         <button id="btnSide">Side by side</button>
@@ -218,7 +221,7 @@
 </main>
 
 <footer>
-  Boundaries are the <b>official surveyed parcels</b> from the IndianaMap statewide layer (Parcel_Boundaries_of_Indiana_Current, fetched 2026-07-18), shown at true relative scale in feet. Each lot's north arrow rotates with it. Satellite imagery © Esri World Imagery · geocoding © OpenStreetMap/Nominatim.
+  Boundaries are the <b>official surveyed parcels</b> from the IndianaMap statewide layer (Parcel_Boundaries_of_Indiana_Current, fetched 2026-07-18), shown at true relative scale in feet. Each lot's north arrow rotates with it. Satellite © Esri World Imagery · street map © OpenStreetMap contributors (or Google when a Map Tiles key is configured) · geocoding © Nominatim.
 </footer>
 
 <script>
@@ -229,7 +232,28 @@ const SQFT_ACRE = 43560;
 const R_FT = 20925646.3;
 const MERC_R = 6378137;
 const PARCEL_URL = 'https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_Current/FeatureServer/0/query';
-const TILE_URL = (z,y,x)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+const SAT_TILE = (z,y,x)=>`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+const OSM_TILE = (z,y,x)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+// Optional: Google Map Tiles API key (restrict it by HTTP referrer!). When set, the street
+// layer uses Google roadmap tiles (best building-outline coverage); otherwise OpenStreetMap.
+const GOOGLE_KEY = '';
+let gTilePromise=null;
+function googleTileFn(){
+  if(!GOOGLE_KEY) return Promise.resolve(null);
+  if(!gTilePromise){
+    gTilePromise=fetch(`https://tile.googleapis.com/v1/createSession?key=${GOOGLE_KEY}`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mapType:'roadmap',language:'en-US',region:'US'})
+    }).then(r=>r.ok?r.json():null)
+      .then(j=>j&&j.session?((z,y,x)=>`https://tile.googleapis.com/v1/2dtiles/${z}/${x}/${y}?session=${j.session}&key=${GOOGLE_KEY}`):null)
+      .catch(()=>null);
+  }
+  return gTilePromise;
+}
+async function tileFnFor(style){
+  if(style==='sat') return SAT_TILE;
+  return (await googleTileFn())||OSM_TILE;
+}
 
 // ---------- geometry ----------
 const areaOf = poly => Math.abs(poly.reduce((a,p,i)=>{const q=poly[(i+1)%poly.length];return a+p.x*q.y-q.x*p.y;},0))/2;
@@ -265,15 +289,15 @@ const gA=ringToFeetGeo(RAW.A.ring), gB=ringToFeetGeo(RAW.B.ring);
 const parcels = [
   { key:'A', name:RAW.A.name, colorVar:'--a',
     poly:gA.pts, geo:{lat:gA.lat,lon:gA.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
-    sat:null, satLoading:false, satError:false,
+    layers:{}, layerLoading:{}, layerError:{},
     note:`Official parcel ${RAW.A.id} — IndianaMap current parcel layer.` },
   { key:'B', name:RAW.B.name, colorVar:'--b',
     poly:gB.pts, geo:{lat:gB.lat,lon:gB.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
-    sat:null, satLoading:false, satError:false,
+    layers:{}, layerLoading:{}, layerError:{},
     note:`Official parcel ${RAW.B.id} — IndianaMap current parcel layer.` },
 ];
 const view = { cx:0, cy:0, s:1 };           // s = px per ft
-const show = { grid:true, compass:true, lengths:true, sat:false };
+const show = { grid:true, compass:true, lengths:true, layer:'fill' }; // layer: fill | sat | street
 let selected = 0, needsDraw = true;
 const draw = () => { needsDraw = true; };
 
@@ -298,19 +322,20 @@ const lat2my=lat=>MERC_R*Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
 const mx2lon=x=>x/MERC_R*180/Math.PI;
 const my2lat=y=>(2*Math.atan(Math.exp(y/MERC_R))-Math.PI/2)*180/Math.PI;
 
-function loadTile(z,ty,tx){
+function loadTile(url){
   return new Promise(res=>{
     const im=new Image();
     im.crossOrigin='anonymous';
     im.onload=()=>res(im);
     im.onerror=()=>res(null);
-    im.src=TILE_URL(z,ty,tx);
+    im.src=url;
   });
 }
-async function loadSat(p){
-  if(!p.geo||p.sat||p.satLoading||p.satError) return;
-  p.satLoading=true; draw();
+async function loadLayer(p, style){
+  if(!p.geo||p.layers[style]||p.layerLoading[style]||p.layerError[style]) return;
+  p.layerLoading[style]=true; draw();
   try{
+    const tileFn=await tileFnFor(style);
     const k=Math.PI/180*R_FT, cosl=Math.cos(p.geo.lat*Math.PI/180);
     const xs=p.poly.map(v=>v.x), ys=p.poly.map(v=>v.y);
     let x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
@@ -331,23 +356,26 @@ async function loadSat(p){
     const cx=c.getContext('2d');
     const jobs=[];
     for(let ty=ty0;ty<=ty1;ty++) for(let tx=tx0;tx<=tx1;tx++)
-      jobs.push(loadTile(z,ty,tx).then(im=>{ if(im) cx.drawImage(im,(tx-tx0)*256,(ty-ty0)*256); return !!im; }));
+      jobs.push(loadTile(tileFn(z,ty,tx)).then(im=>{ if(im) cx.drawImage(im,(tx-tx0)*256,(ty-ty0)*256); return !!im; }));
     const oks=await Promise.all(jobs);
     if(!oks.some(Boolean)) throw new Error('no tiles');
     // image extents in local feet (top = north)
     const imx0=tx0*T-HALF, imx1=(tx1+1)*T-HALF;
     const imyT=HALF-ty0*T, imyB=HALF-(ty1+1)*T;
-    p.sat={
+    p.layers[style]={
       img:c,
       fx0:(mx2lon(imx0)-p.geo.lon)*cosl*k,
       fw:(mx2lon(imx1)-mx2lon(imx0))*cosl*k,
       fyT:(my2lat(imyT)-p.geo.lat)*k,
       fh:(my2lat(imyT)-my2lat(imyB))*k,
     };
-  }catch(_){ p.satError=true; }
-  p.satLoading=false; draw();
+  }catch(_){ p.layerError[style]=true; }
+  p.layerLoading[style]=false; draw();
 }
-function clearSat(p){ p.sat=null; p.satLoading=false; p.satError=false; if(show.sat) loadSat(p); }
+function clearLayers(p){
+  p.layers={}; p.layerLoading={}; p.layerError={};
+  if(show.layer!=='fill') loadLayer(p,show.layer);
+}
 
 // ---------- canvas ----------
 const cv=$('#cv'), ctx=cv.getContext('2d');
@@ -389,12 +417,13 @@ function render(){
     ctx.stroke();
   }
 
-  // satellite imagery: clipped to each lot, rides its rotation; opacity slider drives it
-  if(show.sat){
+  // imagery layer (satellite or street map): clipped to each lot, rides its rotation; opacity slider drives it
+  if(show.layer!=='fill'){
     for(const p of parcels){
       if(!p.visible||!p.geo) continue;
-      if(!p.sat&&!p.satLoading&&!p.satError) loadSat(p);
-      if(!p.sat) continue;
+      if(!p.layers[show.layer]&&!p.layerLoading[show.layer]&&!p.layerError[show.layer]) loadLayer(p,show.layer);
+      const ly=p.layers[show.layer];
+      if(!ly) continue;
       const pts=worldPts(p).map(W2S);
       ctx.save();
       ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); ctx.clip();
@@ -403,7 +432,7 @@ function render(){
       const o=W2S(p.pos);
       ctx.transform(c*view.s, s*view.s, s*view.s, -c*view.s, o.x, o.y);
       ctx.scale(1,-1);
-      ctx.drawImage(p.sat.img, p.sat.fx0, -p.sat.fyT, p.sat.fw, p.sat.fh);
+      ctx.drawImage(ly.img, ly.fx0, -ly.fyT, ly.fw, ly.fh);
       ctx.restore();
     }
   }
@@ -412,7 +441,7 @@ function render(){
   ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
   for(const p of parcels){
     if(!p.visible) continue;
-    if(show.sat&&p.sat) continue;
+    if(show.layer!=='fill'&&p.layers[show.layer]) continue;
     const pts=worldPts(p).map(W2S);
     ctx.globalAlpha=p.opacity; ctx.fillStyle=colorOf(p);
     ctx.beginPath(); pts.forEach((q,i)=>i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)); ctx.closePath(); ctx.fill();
@@ -432,8 +461,8 @@ function render(){
     ctx.fillStyle=col; ctx.font='600 12px Futura, "Avenir Next", "Segoe UI", system-ui, sans-serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(p.name.toUpperCase(), cs.x, cs.y + (idx===0?-10:10));
-    if(show.sat&&p.satLoading){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('loading imagery…', cs.x, cs.y+(idx===0?-26:26));}
-    if(show.sat&&p.satError){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('imagery unavailable', cs.x, cs.y+(idx===0?-26:26));}
+    if(show.layer!=='fill'&&p.layerLoading[show.layer]){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('loading imagery…', cs.x, cs.y+(idx===0?-26:26));}
+    if(show.layer!=='fill'&&p.layerError[show.layer]){ctx.fillStyle=muted; ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillText('imagery unavailable', cs.x, cs.y+(idx===0?-26:26));}
 
     if(show.lengths && view.s>0.05){
       ctx.font='11px ui-monospace, Menlo, monospace'; ctx.fillStyle=muted;
@@ -565,8 +594,8 @@ function buildCard(p, idx, host){
   });
   host.querySelector('[data-act=mkrect]').addEventListener('click',()=>{
     const w=+host.querySelector('[data-r=w]').value||100, d=+host.querySelector('[data-r=d]').value||150;
-    p.poly=rect(w,d); p.geo=null; clearSat(p);
-    p.note=`Custom rectangle ${w} × ${d} ft (no geo reference — satellite unavailable).`;
+    p.poly=rect(w,d); p.geo=null; clearLayers(p);
+    p.note=`Custom rectangle ${w} × ${d} ft (no geo reference — imagery unavailable).`;
     updateReadouts(); draw();
   });
   host.addEventListener('pointerdown',()=>{selected=idx; draw();});
@@ -578,11 +607,12 @@ buildCard(parcels[1],1,$('#cardB'));
 $('#ckGrid').addEventListener('change',e=>{show.grid=e.target.checked;draw();});
 $('#ckCompass').addEventListener('change',e=>{show.compass=e.target.checked;draw();});
 $('#ckLengths').addEventListener('change',e=>{show.lengths=e.target.checked;draw();});
-$('#ckSat').addEventListener('change',e=>{
-  show.sat=e.target.checked;
-  if(show.sat) parcels.forEach(p=>{ if(p.geo&&!p.sat) loadSat(p); });
+document.querySelectorAll('input[name=layer]').forEach(r=>r.addEventListener('change',e=>{
+  if(!e.target.checked) return;
+  show.layer=e.target.value;
+  if(show.layer!=='fill') parcels.forEach(p=>{ if(p.geo) loadLayer(p,show.layer); });
   draw();
-});
+}));
 $('#btnFit').addEventListener('click',fitView);
 $('#btnStack').addEventListener('click',()=>{parcels[1].pos={...parcels[0].pos}; fitView();});
 $('#btnSide').addEventListener('click',()=>{
@@ -726,7 +756,7 @@ function applyParcelFeature(p, feat, sourceNote){
   const addr=pr.dlgf_prop_address?titleCase(pr.dlgf_prop_address):null;
   if(addr){ p.name=addr; if(p.el&&p.el.nameInput) p.el.nameInput.value=addr; }
   p.note=`Official parcel ${pr.parcel_id||pr.state_parcel_id||''} — IndianaMap current parcel layer${sourceNote||''}.`;
-  clearSat(p);
+  clearLayers(p);
   updateReadouts(); fitView();
 }
 async function lookupAddress(idx){
@@ -811,7 +841,7 @@ function doImport(idx){
     p.poly=gg.pts; p.geo={lat:gg.lat,lon:gg.lon};
     p.rot=0; p.setRot(0);
     p.note='Imported boundary (true shape, oriented to true north).';
-    clearSat(p);
+    clearLayers(p);
     updateReadouts(); fitView();
   }catch(_){
     err.style.display='block';

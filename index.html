@@ -107,6 +107,16 @@
     border-radius:6px; background:var(--panel); color:var(--ink); font-size:11.5px;
     font-family:ui-monospace,Menlo,Consolas,monospace;
   }
+  #cmpTable{width:100%; border-collapse:collapse; font-size:12px}
+  #cmpTable th{font-weight:700; padding:2px 6px; text-align:right}
+  #cmpTable td{padding:3px 6px; border-top:1px solid var(--line); text-align:right; color:var(--ink)}
+  #cmpTable td:first-child{text-align:left; color:var(--muted); font-size:11.5px}
+  #cmpTable input{
+    width:100%; min-width:0; padding:2px 4px; border:1px solid transparent; border-radius:4px;
+    background:transparent; color:var(--ink); font-size:12px; text-align:right;
+  }
+  #cmpTable input:hover{border-color:var(--edge)}
+  #cmpTable input:focus{border-color:var(--focus); background:var(--panel)}
   .status{font-size:12px; color:var(--muted); margin-top:6px; display:none}
   .status.err{color:#B23A3A}
   :root[data-theme="dark"] .status.err{color:#F09B9B}
@@ -172,6 +182,16 @@
         <button id="btnSide">Side by side</button>
         <button id="btnFit">Zoom to fit</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Compare</h2>
+      <table id="cmpTable" aria-label="Property comparison table"></table>
+      <div class="btns">
+        <button id="btnPrivacy">Count neighbor roofs</button>
+      </div>
+      <div id="privStatus" class="status" role="status"></div>
+      <div class="note">Roof counts come live from OpenStreetMap (Overpass) around each lot — structures on the lot itself are excluded, distances are from the house. Beds/baths/sqft are manual: grab them from the listing; they save in this browser per property name.</div>
     </div>
 
     <div class="card">
@@ -372,8 +392,9 @@ async function loadLayer(p, style){
   }catch(_){ p.layerError[style]=true; }
   p.layerLoading[style]=false; draw();
 }
-function clearLayers(p){
+function clearLayers(p){ // called whenever a parcel's boundary is replaced
   p.layers={}; p.layerLoading={}; p.layerError={};
+  p.privacy=null;
   if(show.layer!=='fill') loadLayer(p,show.layer);
 }
 
@@ -548,6 +569,7 @@ function updateReadouts(){
     p.el.perim.textContent=`${fmt(perimOf(p.poly))} ft`;
     p.el.note.textContent=p.note;
   });
+  updateCompare();
 }
 
 // ---------- parcel cards ----------
@@ -796,6 +818,98 @@ async function lookupAddress(idx){
 $('#fetchA').addEventListener('click',()=>lookupAddress(0));
 $('#fetchB').addEventListener('click',()=>lookupAddress(1));
 $('#addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupAddress(selected); });
+
+// ---------- compare table & privacy (neighbor roofs) ----------
+const RINGS=[500,1000,1500,2500];
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const NONRES=new Set(['apartments','commercial','retail','industrial','school','church','office','warehouse']);
+const ATTRS_KEY='pbc-attrs';
+const MANUAL=[['Beds','beds'],['Baths','baths'],['Finished sqft','sqft'],['Year built','year'],['Price','price']];
+const loadAttrs=()=>{try{return JSON.parse(localStorage.getItem(ATTRS_KEY))||{}}catch(_){return {}}};
+const saveAttr=(name,field,val)=>{try{const a=loadAttrs();(a[name]=a[name]||{})[field]=val;localStorage.setItem(ATTRS_KEY,JSON.stringify(a));}catch(_){}};
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const privVal=(p,fn)=>p.privacy?fn(p.privacy):'–';
+
+function updateCompare(){
+  const t=$('#cmpTable');
+  if(t.contains(document.activeElement)) return; // don't rebuild under the user's cursor
+  const attrs=loadAttrs();
+  const auto=[
+    ['Lot area', p=>(areaOf(p.poly)/SQFT_ACRE).toFixed(2)+' ac'],
+    ['Perimeter', p=>fmt(perimOf(p.poly))+' ft'],
+    ['House footprint', p=>privVal(p,v=>v.homeSqft?fmt(v.homeSqft)+' ft²':'–')],
+    ['Nearest roof', p=>privVal(p,v=>v.nearest?fmt(v.nearest)+' ft':'–')],
+    ...RINGS.map(r=>['Roofs ≤ '+r+' ft', p=>privVal(p,v=>v.counts[r])]),
+    ['Apts/commercial ≤ 2500 ft', p=>privVal(p,v=>v.apts.n?v.apts.n+' (nearest '+fmt(v.apts.min)+' ft)':'0')],
+  ];
+  const rows=['<tr><th></th><th style="color:var(--a)">'+esc(parcels[0].key)+'</th><th style="color:var(--b)">'+esc(parcels[1].key)+'</th></tr>'];
+  for(const [label,fn] of auto)
+    rows.push('<tr><td>'+label+'</td><td class="mono">'+fn(parcels[0])+'</td><td class="mono">'+fn(parcels[1])+'</td></tr>');
+  for(const [label,field] of MANUAL){
+    const cell=p=>'<td><input data-attr="'+field+'" data-p="'+p.key+'" value="'+esc((attrs[p.name]||{})[field]||'')+'" aria-label="'+label+' for '+esc(p.name)+'"></td>';
+    rows.push('<tr><td>'+label+'</td>'+cell(parcels[0])+cell(parcels[1])+'</tr>');
+  }
+  t.innerHTML=rows.join('');
+  t.querySelectorAll('input[data-attr]').forEach(inp=>inp.addEventListener('input',e=>{
+    const p=parcels[e.target.dataset.p==='A'?0:1];
+    saveAttr(p.name,e.target.dataset.attr,e.target.value);
+  }));
+}
+
+async function fetchPrivacy(p){
+  if(!p.geo) throw new Error(p.name+' has no geo reference (custom shape).');
+  const cosl=Math.cos(p.geo.lat*Math.PI/180), k=Math.PI/180*R_FT;
+  const q=`[out:json][timeout:60];way["building"](around:800,${p.geo.lat},${p.geo.lon});out geom;`;
+  let data=null,err=null;
+  for(const ep of OVERPASS){
+    try{
+      const r=await fetch(ep,{method:'POST',body:new URLSearchParams({data:q})});
+      if(!r.ok) throw new Error('Overpass '+r.status);
+      data=await r.json(); break;
+    }catch(e){ err=e; }
+  }
+  if(!data) throw err||new Error('Overpass unavailable');
+  const toFt=(lon,lat)=>({x:(lon-p.geo.lon)*cosl*k, y:(lat-p.geo.lat)*k});
+  const bl=[];
+  for(const el of data.elements||[]){
+    if(el.type!=='way'||!el.geometry||el.geometry.length<4) continue;
+    let pts=el.geometry.map(g=>toFt(g.lon,g.lat));
+    if(Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<.5) pts=pts.slice(0,-1);
+    bl.push({c:centroidOf(pts), area:areaOf(pts), tag:(el.tags||{}).building||'yes'});
+  }
+  const own=bl.filter(b=>inPoly(b.c,p.poly));
+  const others=bl.filter(b=>!inPoly(b.c,p.poly));
+  const home=own.reduce((a,b)=>!a||b.area>a.area?b:a,null);
+  const hc=home?home.c:{x:0,y:0}; // fall back to parcel centroid
+  for(const b of others) b.dist=Math.hypot(b.c.x-hc.x,b.c.y-hc.y);
+  const counts={}; RINGS.forEach(r=>counts[r]=others.filter(b=>b.dist<=r).length);
+  const ap=others.filter(b=>NONRES.has(b.tag)&&b.dist<=2500);
+  p.privacy={
+    homeSqft:home?Math.round(home.area):0,
+    nearest:others.length?Math.round(Math.min(...others.map(b=>b.dist))):0,
+    counts,
+    apts:{n:ap.length, min:ap.length?Math.round(Math.min(...ap.map(b=>b.dist))):0},
+  };
+}
+
+const privStatus=$('#privStatus');
+function setPrivStatus(msg,isErr){
+  privStatus.style.display=msg?'block':'none';
+  privStatus.textContent=msg||'';
+  privStatus.classList.toggle('err',!!isErr);
+}
+$('#btnPrivacy').addEventListener('click',async()=>{
+  const btn=$('#btnPrivacy'); btn.disabled=true;
+  const errs=[];
+  for(const p of parcels){
+    if(p.privacy) continue; // cached until the boundary changes
+    setPrivStatus('Counting roofs around '+p.name+'…');
+    try{ await fetchPrivacy(p); }catch(e){ errs.push((e&&e.message)||('Lookup failed for '+p.name)); }
+    updateCompare();
+  }
+  setPrivStatus(errs.length?errs.join(' · '):'Done — roof counts are live OpenStreetMap data.',!!errs.length);
+  btn.disabled=false;
+});
 
 // ---------- paste import (fallback) ----------
 $('#btnLookup').addEventListener('click',()=>{

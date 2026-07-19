@@ -10,6 +10,7 @@ Preloaded comparison: **9034 W Mallory Rd** (parcel 53-04-20-201-003.000-011, �
 - **Lot fill switcher — Color / Satellite / Street map**: imagery is clipped to each lot's boundary and rides its rotation; whichever fill is active, each lot's Opacity slider controls it. Satellite (Esri World Imagery) shows what's actually *on* the land (wooded strips, clearings, outbuildings); Street map shows road context and **building outlines** (OpenStreetMap by default — set `GOOGLE_KEY` in `index.html` to a referrer-restricted [Map Tiles API](https://developers.google.com/maps/documentation/tile) key to use Google roadmap tiles instead, which have the most complete house footprints)
 - **Per-lot north arrows**: each lot rotates independently, so each gets its own compass arrow showing which way true north points for that lot — useful for thinking about sun exposure / solar potential while shapes are rotated to align
 - **Address lookup**: type any Indiana address and fetch its official parcel boundary live from the IndianaMap FeatureServer (attribute match first, geocode + point-intersect fallback via Nominatim). Needs internet; works from the hosted page or a local copy
+- **Compare table with privacy score**: side-by-side attributes for both lots — auto-computed (lot area, perimeter, house footprint, nearest neighboring roof, count of other-parcel structures within 500/1000/1500/2500 ft, and apartments/commercial within half a mile, all from live OpenStreetMap building footprints via Overpass) plus manual listing fields (beds, baths, finished sqft, year built, price) that persist in the browser per property name
 - Paste-import fallback: paste GeoJSON, ArcGIS JSON (`rings`), or raw lat/lon pairs. WGS84 and Web Mercator are auto-projected to local feet
 - Overlap reads visually via blend modes (multiply in light theme, screen in dark)
 - Scale bar, grid, per-edge length labels, live area/perimeter and size-ratio readouts
@@ -25,6 +26,7 @@ With a lot selected (click it): arrow keys nudge 1 ft (Shift = 10 ft), `[` / `]`
 - Parcel boundaries: [IndianaMap](https://www.indianamap.org/) `Parcel_Boundaries_of_Indiana_Current` FeatureServer (gisdata.in.gov)
 - Satellite imagery: Esri World Imagery tile service
 - Street map: OpenStreetMap standard tiles, or Google Map Tiles API (roadmap) when `GOOGLE_KEY` is set
+- Neighbor-roof counts: OpenStreetMap building footprints via the Overpass API (overpass-api.de with mirror fallbacks)
 - Geocoding fallback: OpenStreetMap Nominatim
 
 ## Optional: Google street tiles

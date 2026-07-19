@@ -188,10 +188,10 @@
       <h2>Compare</h2>
       <table id="cmpTable" aria-label="Property comparison table"></table>
       <div class="btns">
-        <button id="btnPrivacy">Count neighbor roofs</button>
+        <button id="btnPrivacy">Analyze: roofs · roads · land cover</button>
       </div>
       <div id="privStatus" class="status" role="status"></div>
-      <div class="note">Roof counts come live from OpenStreetMap (Overpass) around each lot — structures on the lot itself are excluded, distances are from the house. Beds/baths/sqft are manual: grab them from the listing; they save in this browser per property name.</div>
+      <div class="note">Roofs and roads come live from OpenStreetMap (Overpass) — structures on the lot itself are excluded, distances are from the house. Woods/open is estimated from the satellite tiles (texture analysis; winter imagery reads conservative, real leaf-on canopy is a bit higher). Road noise is a rough class+distance model, not a measurement. Beds/baths/sqft are manual: grab them from the listing; they save in this browser per property name.</div>
     </div>
 
     <div class="card">
@@ -394,7 +394,7 @@ async function loadLayer(p, style){
 }
 function clearLayers(p){ // called whenever a parcel's boundary is replaced
   p.layers={}; p.layerLoading={}; p.layerError={};
-  p.privacy=null;
+  p.privacy=null; p.landcover=null;
   if(show.layer!=='fill') loadLayer(p,show.layer);
 }
 
@@ -834,13 +834,20 @@ function updateCompare(){
   const t=$('#cmpTable');
   if(t.contains(document.activeElement)) return; // don't rebuild under the user's cursor
   const attrs=loadAttrs();
+  const noiseCat=db=>db>=65?'loud':db>=55?'moderate':db>=45?'quiet':'very quiet';
+  const lcVal=(p,fn)=>p.landcover?fn(p.landcover):'–';
   const auto=[
     ['Lot area', p=>(areaOf(p.poly)/SQFT_ACRE).toFixed(2)+' ac'],
     ['Perimeter', p=>fmt(perimOf(p.poly))+' ft'],
+    ['Woods (est.)', p=>lcVal(p,v=>v.woodsAc.toFixed(2)+' ac ('+Math.round(100*v.woodsAc/Math.max(v.totAc,.01))+'%)')],
+    ['Open (est.)', p=>lcVal(p,v=>(v.totAc-v.woodsAc).toFixed(2)+' ac')],
     ['House footprint', p=>privVal(p,v=>v.homeSqft?fmt(v.homeSqft)+' ft²':'–')],
     ['Nearest roof', p=>privVal(p,v=>v.nearest?fmt(v.nearest)+' ft':'–')],
     ...RINGS.map(r=>['Roofs ≤ '+r+' ft', p=>privVal(p,v=>v.counts[r])]),
     ['Apts/commercial ≤ 2500 ft', p=>privVal(p,v=>v.apts.n?v.apts.n+' (nearest '+fmt(v.apts.min)+' ft)':'0')],
+    ['Nearest road', p=>privVal(p,v=>v.roadAny?fmt(v.roadAny.d)+' ft ('+esc(v.roadAny.label)+')':'–')],
+    ['Nearest major road', p=>privVal(p,v=>v.roadMajor?fmt(v.roadMajor.d)+' ft ('+esc(v.roadMajor.label)+' · '+v.roadMajor.cls+')':'none ≤ 2 mi')],
+    ['Road noise (rough)', p=>privVal(p,v=>v.noise?'~'+v.noise.db+' dB · '+noiseCat(v.noise.db):'–')],
   ];
   const rows=['<tr><th></th><th style="color:var(--a)">'+esc(parcels[0].key)+'</th><th style="color:var(--b)">'+esc(parcels[1].key)+'</th></tr>'];
   for(const [label,fn] of auto)
@@ -856,10 +863,20 @@ function updateCompare(){
   }));
 }
 
+const MAJOR=/^(motorway|trunk|primary|secondary|tertiary)(_link)?$/;
+const NOISE_BASE={motorway:82,trunk:77,primary:74,secondary:69,tertiary:64,unclassified:56,residential:54,living_street:50,service:48,track:42};
+const noiseAt=(cls,distFt)=>{ // rough: class level at 50 ft, −4.5 dB per doubling of distance
+  const base=NOISE_BASE[cls.replace('_link','')]??50;
+  return base-4.5*Math.log2(Math.max(distFt,50)/50);
+};
 async function fetchPrivacy(p){
   if(!p.geo) throw new Error(p.name+' has no geo reference (custom shape).');
   const cosl=Math.cos(p.geo.lat*Math.PI/180), k=Math.PI/180*R_FT;
-  const q=`[out:json][timeout:60];way["building"](around:800,${p.geo.lat},${p.geo.lon});out geom;`;
+  const q=`[out:json][timeout:90];(
+way["building"](around:800,${p.geo.lat},${p.geo.lon});
+way["highway"~"^(motorway|trunk|primary|secondary|tertiary)(_link)?$"](around:3300,${p.geo.lat},${p.geo.lon});
+way["highway"~"^(unclassified|residential|living_street|service|track)$"](around:800,${p.geo.lat},${p.geo.lon});
+);out geom;`;
   let data=null,err=null;
   for(const ep of OVERPASS){
     try{
@@ -870,12 +887,19 @@ async function fetchPrivacy(p){
   }
   if(!data) throw err||new Error('Overpass unavailable');
   const toFt=(lon,lat)=>({x:(lon-p.geo.lon)*cosl*k, y:(lat-p.geo.lat)*k});
-  const bl=[];
+  const bl=[], roads=[];
   for(const el of data.elements||[]){
-    if(el.type!=='way'||!el.geometry||el.geometry.length<4) continue;
+    if(el.type!=='way'||!el.geometry||el.geometry.length<2) continue;
+    const tags=el.tags||{};
+    if(tags.highway){
+      roads.push({pts:el.geometry.map(g=>toFt(g.lon,g.lat)), cls:tags.highway,
+                  label:tags.ref||tags.name||tags.highway});
+      continue;
+    }
+    if(el.geometry.length<4) continue;
     let pts=el.geometry.map(g=>toFt(g.lon,g.lat));
     if(Math.hypot(pts[0].x-pts.at(-1).x,pts[0].y-pts.at(-1).y)<.5) pts=pts.slice(0,-1);
-    bl.push({c:centroidOf(pts), area:areaOf(pts), tag:(el.tags||{}).building||'yes'});
+    bl.push({c:centroidOf(pts), area:areaOf(pts), tag:tags.building||'yes'});
   }
   const own=bl.filter(b=>inPoly(b.c,p.poly));
   const others=bl.filter(b=>!inPoly(b.c,p.poly));
@@ -884,12 +908,101 @@ async function fetchPrivacy(p){
   for(const b of others) b.dist=Math.hypot(b.c.x-hc.x,b.c.y-hc.y);
   const counts={}; RINGS.forEach(r=>counts[r]=others.filter(b=>b.dist<=r).length);
   const ap=others.filter(b=>NONRES.has(b.tag)&&b.dist<=2500);
+  // roads: min distance from the house to each way's polyline
+  for(const rd of roads){
+    let d=Infinity;
+    for(let i=0;i+1<rd.pts.length;i++) d=Math.min(d,distSeg(hc,rd.pts[i],rd.pts[i+1]).d);
+    rd.dist=d;
+  }
+  const nearestOf=list=>list.length?list.reduce((a,b)=>b.dist<a.dist?b:a):null;
+  const anyRd=nearestOf(roads), majRd=nearestOf(roads.filter(r=>MAJOR.test(r.cls)));
+  let noise=null;
+  for(const rd of roads){
+    const db=noiseAt(rd.cls,rd.dist);
+    if(!noise||db>noise.db) noise={db,src:rd.label};
+  }
   p.privacy={
     homeSqft:home?Math.round(home.area):0,
     nearest:others.length?Math.round(Math.min(...others.map(b=>b.dist))):0,
     counts,
     apts:{n:ap.length, min:ap.length?Math.round(Math.min(...ap.map(b=>b.dist))):0},
+    roadAny:anyRd?{d:Math.round(anyRd.dist),label:anyRd.label}:null,
+    roadMajor:majRd?{d:Math.round(majRd.dist),label:majRd.label,cls:majRd.cls.replace('_link','')}:null,
+    noise:noise?{db:Math.round(noise.db),src:noise.src}:null,
   };
+}
+
+// ---------- land cover (woods vs open) from satellite tiles ----------
+async function ensureSatLayer(p){
+  if(p.layers.sat) return;
+  p.layerError.sat=false;
+  loadLayer(p,'sat');
+  for(let i=0;i<120;i++){
+    if(p.layers.sat) return;
+    if(p.layerError.sat) throw new Error('satellite imagery unavailable for '+p.name);
+    await new Promise(r=>setTimeout(r,250));
+  }
+  throw new Error('satellite imagery timed out for '+p.name);
+}
+function integral(g,W,H){
+  const S=new Float64Array((W+1)*(H+1));
+  for(let y=0;y<H;y++){
+    let rs=0;
+    for(let x=0;x<W;x++){ rs+=g[y*W+x]; S[(y+1)*(W+1)+x+1]=S[y*(W+1)+x+1]+rs; }
+  }
+  return S;
+}
+function windowSum(S,W,H,kw,fn){ // fn(i, sum, n) over every pixel's kw×kw window
+  const r=kw>>1;
+  for(let y=0;y<H;y++){
+    const y0=Math.max(0,y-r), y1=Math.min(H,y+r+1);
+    for(let x=0;x<W;x++){
+      const x0=Math.max(0,x-r), x1=Math.min(W,x+r+1);
+      const s=S[y1*(W+1)+x1]-S[y0*(W+1)+x1]-S[y1*(W+1)+x0]+S[y0*(W+1)+x0];
+      fn(y*W+x, s, (x1-x0)*(y1-y0));
+    }
+  }
+}
+function boxStd(g,W,H,kw){ // local std-dev via integral images
+  const g2=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++) g2[i]=g[i]*g[i];
+  const S=integral(g,W,H), S2=integral(g2,W,H);
+  const mean=new Float32Array(W*H), out=new Float32Array(W*H);
+  windowSum(S,W,H,kw,(i,s,n)=>{mean[i]=s/n;});
+  windowSum(S2,W,H,kw,(i,s,n)=>{out[i]=Math.sqrt(Math.max(0,s/n-mean[i]*mean[i]));});
+  return out;
+}
+function boxMean(g,W,H,kw){
+  const S=integral(g,W,H), out=new Float32Array(W*H);
+  windowSum(S,W,H,kw,(i,s,n)=>{out[i]=s/n;});
+  return out;
+}
+async function estimateLandcover(p){
+  if(!p.geo) throw new Error(p.name+' has no geo reference (custom shape).');
+  await ensureSatLayer(p);
+  const ly=p.layers.sat, W=ly.img.width, H=ly.img.height;
+  const fppx=ly.fw/W, fppy=ly.fh/H; // feet per pixel
+  let id;
+  try{ id=ly.img.getContext('2d').getImageData(0,0,W,H).data; }
+  catch(_){ throw new Error('imagery pixels blocked by the browser (try the hosted page).'); }
+  const g=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++) g[i]=0.299*id[i*4]+0.587*id[i*4+1]+0.114*id[i*4+2];
+  const odd=v=>Math.max(5,Math.min(15,Math.round(v)))|1;
+  const std=boxStd(g,W,H,odd(8/fppx));       // canopy is rough at ~2.5 m scale
+  const stds=boxMean(std,W,H,odd(10/fppx));  // smooth the texture measure
+  const mask=document.createElement('canvas'); mask.width=W; mask.height=H;
+  const mc=mask.getContext('2d'); mc.fillStyle='#fff'; mc.beginPath();
+  p.poly.forEach((v,i)=>{const px=(v.x-ly.fx0)/fppx, py=(ly.fyT-v.y)/fppy; i?mc.lineTo(px,py):mc.moveTo(px,py);});
+  mc.closePath(); mc.fill();
+  const md=mc.getImageData(0,0,W,H).data;
+  let tot=0, woods=0;
+  for(let i=0;i<W*H;i++){
+    if(md[i*4]<128) continue;
+    tot++;
+    if(stds[i]>13||g[i]<70) woods++; // rough texture or deep shadow = canopy
+  }
+  const pxa=fppx*fppy;
+  p.landcover={woodsAc:woods*pxa/SQFT_ACRE, totAc:tot*pxa/SQFT_ACRE};
 }
 
 const privStatus=$('#privStatus');
@@ -902,12 +1015,18 @@ $('#btnPrivacy').addEventListener('click',async()=>{
   const btn=$('#btnPrivacy'); btn.disabled=true;
   const errs=[];
   for(const p of parcels){
-    if(p.privacy) continue; // cached until the boundary changes
-    setPrivStatus('Counting roofs around '+p.name+'…');
-    try{ await fetchPrivacy(p); }catch(e){ errs.push((e&&e.message)||('Lookup failed for '+p.name)); }
-    updateCompare();
+    if(!p.privacy){
+      setPrivStatus('Counting roofs and roads around '+p.name+'…');
+      try{ await fetchPrivacy(p); }catch(e){ errs.push((e&&e.message)||('Lookup failed for '+p.name)); }
+      updateCompare();
+    }
+    if(!p.landcover){
+      setPrivStatus('Classifying woods vs open on '+p.name+'…');
+      try{ await estimateLandcover(p); }catch(e){ errs.push((e&&e.message)||('Land cover failed for '+p.name)); }
+      updateCompare();
+    }
   }
-  setPrivStatus(errs.length?errs.join(' · '):'Done — roof counts are live OpenStreetMap data.',!!errs.length);
+  setPrivStatus(errs.length?errs.join(' · '):'Done — roofs/roads from OpenStreetMap, land cover from satellite texture.',!!errs.length);
   btn.disabled=false;
 });
 

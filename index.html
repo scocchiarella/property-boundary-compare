@@ -463,34 +463,37 @@ function render(){
   };
   const imgMode=show.layer!=='fill';
   const sqSide=ctxSquare.on?Math.sqrt(ctxSquare.acres*SQFT_ACRE):0;
-  for(const p of parcels){
-    if(!p.visible||!p.geo) continue;
+  const geo=parcels.map(p=>{
+    if(!p.visible||!p.geo) return null;
     if(imgMode&&!p.layers[show.layer]&&!p.layerLoading[show.layer]&&!p.layerError[show.layer]) loadLayer(p,show.layer);
-    const ly=p.layers[show.layer];
-    const parcelScr=worldPts(p).map(W2S);
-    const sqScr=sqSide?[{x:-sqSide/2,y:-sqSide/2},{x:sqSide/2,y:-sqSide/2},{x:sqSide/2,y:sqSide/2},{x:-sqSide/2,y:sqSide/2}]
-      .map(v=>W2S(localToWorld(p,v))):null;
-    if(imgMode&&ly&&sqScr){ // neighborhood context, veiled outside the lot so the lot pops
-      ctx.save(); screenPath(sqScr); ctx.clip();
-      ctx.globalAlpha=p.opacity; drawGeoImage(p,ly); ctx.restore();
-      ctx.save(); ctx.beginPath(); addPath(sqScr); addPath(parcelScr);
-      ctx.globalAlpha=.35; ctx.fillStyle=paper; ctx.fill('evenodd'); ctx.restore();
-      ctx.globalAlpha=1;
-    }
+    return {p, ly:p.layers[show.layer], parcelScr:worldPts(p).map(W2S),
+      sqScr:sqSide?[{x:-sqSide/2,y:-sqSide/2},{x:sqSide/2,y:-sqSide/2},{x:sqSide/2,y:sqSide/2},{x:-sqSide/2,y:sqSide/2}]
+        .map(v=>W2S(localToWorld(p,v))):null};
+  }).filter(Boolean);
+  // pass 1 — neighborhood context squares (always beneath every parcel)
+  for(const {p,ly,parcelScr,sqScr} of geo){
+    if(!imgMode||!ly||!sqScr) continue;
+    ctx.save(); screenPath(sqScr); ctx.clip();
+    ctx.globalAlpha=p.opacity; drawGeoImage(p,ly);
+    if(show.lcTint&&p.lcTint){ ctx.globalAlpha=.55; drawGeoImage(p,p.lcTint); }
+    ctx.restore();
+    ctx.save(); ctx.beginPath(); addPath(sqScr); addPath(parcelScr); // veil outside the lot so it pops
+    ctx.globalAlpha=.35; ctx.fillStyle=paper; ctx.fill('evenodd'); ctx.restore();
+    ctx.save(); screenPath(sqScr);
+    ctx.strokeStyle=muted; ctx.setLineDash([4,4]); ctx.lineWidth=1; ctx.globalAlpha=1; ctx.stroke();
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+  // pass 2 — parcel imagery + tint on top
+  for(const {p,ly,parcelScr} of geo){
     if(imgMode&&ly){
       ctx.save(); screenPath(parcelScr); ctx.clip();
       ctx.globalAlpha=p.opacity; drawGeoImage(p,ly); ctx.restore();
       ctx.globalAlpha=1;
     }
-    if(show.lcTint&&p.lcTint){ // woods/open classification overlay
-      ctx.save(); screenPath((imgMode&&ly&&sqScr)?sqScr:parcelScr); ctx.clip();
+    if(show.lcTint&&p.lcTint){
+      ctx.save(); screenPath(parcelScr); ctx.clip();
       ctx.globalAlpha=.55; drawGeoImage(p,p.lcTint); ctx.restore();
       ctx.globalAlpha=1;
-    }
-    if(imgMode&&ly&&sqScr){
-      ctx.save(); screenPath(sqScr);
-      ctx.strokeStyle=muted; ctx.setLineDash([4,4]); ctx.lineWidth=1; ctx.stroke();
-      ctx.restore();
     }
   }
 

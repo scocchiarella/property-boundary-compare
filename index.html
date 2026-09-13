@@ -198,7 +198,7 @@
       <label class="check"><input type="radio" name="layer" value="street"> Street map (house outlines)</label>
       <label class="check"><input type="checkbox" id="ckLC"> Woods/open tint</label>
       <label class="check"><input type="checkbox" id="ckCtx"> Surrounding area square</label>
-      <div class="row" style="margin:2px 0 4px 24px"><label style="width:auto">Size</label><input type="number" id="ctxAcres" min="1" max="160" value="10"><span style="font-size:12px;color:var(--muted)">acres</span></div>
+      <div class="row" style="margin:2px 0 4px 24px"><label style="width:auto">Size</label><input type="number" id="ctxAcres" min="1" max="640" value="10"><span style="font-size:12px;color:var(--muted)">acres (up to a 1-mile section)</span></div>
       <div class="note" style="margin-top:4px">Imagery is clipped to each lot and rotates with it; the surrounding square (needs satellite or street fill) shows the neighborhood context around each lot at the same scale — adjacent woods read across your boundary. Each lot's Opacity slider controls whichever fill is active.</div>
       <div class="btns">
         <button id="btnStack">Stack lots</button>
@@ -791,7 +791,7 @@ function refreshContext(){ // extent changed: refetch imagery + reclassify at th
 }
 $('#ckCtx').addEventListener('change',e=>{ ctxSquare.on=e.target.checked; refreshContext(); });
 $('#ctxAcres').addEventListener('change',e=>{
-  ctxSquare.acres=Math.max(1,Math.min(160,+e.target.value||10));
+  ctxSquare.acres=Math.max(1,Math.min(640,+e.target.value||10));
   e.target.value=ctxSquare.acres;
   if(ctxSquare.on) refreshContext();
 });

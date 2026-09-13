@@ -2,7 +2,9 @@
 
 A self-contained, single-file tool for comparing two property lots at true relative scale. Open `index.html` in any browser — no build step, no dependencies. Live at **https://scocchiarella.github.io/property-boundary-compare/**.
 
-Preloaded comparison: **9034 W Mallory Rd** (parcel 53-04-20-201-003.000-011, ≈3.10 ac) vs **5120 N Capitol Ave** (parcel 53-04-11-302-004.000-013, ≈1.01 ac), Bloomington, IN 47404 — both are the official surveyed boundaries from the IndianaMap statewide parcel layer (`Parcel_Boundaries_of_Indiana_Current`, fetched 2026-07-18).
+Preloaded comparison, three lots at shared scale: **7243 N Red Hill Rd**, Ellettsville 47429 (parcel 53-03-33-400-017.000-001, ≈2.48 ac) · **5120 N Capitol Ave**, Bloomington 47404 (53-04-11-302-004.000-013, ≈1.01 ac) · **9034 W Mallory Rd**, Bloomington 47404 (53-04-20-201-003.000-011, ≈3.10 ac) — all official surveyed boundaries from the IndianaMap statewide parcel layer (`Parcel_Boundaries_of_Indiana_Current`; Red Hill fetched 2026-09-13, the others 2026-07-18).
+
+The tool takes **any number of lots**, not just two: **+ Add lot** appends one (150 × 150 ft placeholder, six colors in rotation), **Remove lot** drops one, and Address lookup / paste-import each target a chosen lot via a picker. Header, stat chips, compare table, stack and side-by-side all follow the current lot list.
 
 ## Features
 

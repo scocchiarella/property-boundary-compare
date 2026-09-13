@@ -3,31 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lot Overlay — Mallory Rd vs N Capitol Ave</title>
+<title>Lot Overlay — Property Comparison</title>
 <style>
   :root{
     --paper:#F3F4EF; --panel:#FBFBF8; --ink:#22302B; --muted:#6B7A72;
-    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E;
+    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E; --c:#7B4EA8; --d:#3F7F5B; --e:#B5761F; --f:#A33A6B;
     --focus:#2E6F8E; --is-dark:0;
     --shadow:0 1px 2px rgba(34,48,43,.08), 0 4px 14px rgba(34,48,43,.06);
   }
   @media (prefers-color-scheme: dark){
     :root{
       --paper:#151A18; --panel:#1C2320; --ink:#E7ECE6; --muted:#93A099;
-      --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC;
+      --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC; --c:#B491E0; --d:#79C08A; --e:#E0A94E; --f:#E082AC;
       --focus:#5FA8CC; --is-dark:1;
       --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
     }
   }
   :root[data-theme="dark"]{
     --paper:#151A18; --panel:#1C2320; --ink:#E7ECE6; --muted:#93A099;
-    --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC;
+    --line:#26302B; --edge:#33403A; --a:#FF7A5C; --b:#5FA8CC; --c:#B491E0; --d:#79C08A; --e:#E0A94E; --f:#E082AC;
     --focus:#5FA8CC; --is-dark:1;
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
   }
   :root[data-theme="light"]{
     --paper:#F3F4EF; --panel:#FBFBF8; --ink:#22302B; --muted:#6B7A72;
-    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E;
+    --line:#D8DCD2; --edge:#C4CBBE; --a:#D64B33; --b:#2E6F8E; --c:#7B4EA8; --d:#3F7F5B; --e:#B5761F; --f:#A33A6B;
     --focus:#2E6F8E; --is-dark:0;
     --shadow:0 1px 2px rgba(34,48,43,.08), 0 4px 14px rgba(34,48,43,.06);
   }
@@ -47,7 +47,7 @@
   }
   header h1{margin:0; font-size:17px; letter-spacing:.04em; text-transform:uppercase}
   header h1 .vs{color:var(--muted); font-weight:400; margin:0 4px}
-  header h1 .pa{color:var(--a)} header h1 .pb{color:var(--b)}
+  #cards{display:contents}
   #stats{display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--muted)}
   #stats b{color:var(--ink); font-weight:600}
   #stats .dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:1px}
@@ -154,18 +154,17 @@
 <body>
 
 <header>
-  <h1 class="disp"><span class="pa" id="hNameA">Mallory Rd</span><span class="vs">vs</span><span class="pb" id="hNameB">N Capitol Ave</span></h1>
-  <div id="stats" class="mono">
-    <span><span class="dot" style="background:var(--a)"></span><b id="statA">–</b></span>
-    <span><span class="dot" style="background:var(--b)"></span><b id="statB">–</b></span>
-    <span id="statRatio"></span>
-  </div>
+  <h1 class="disp" id="hNames"></h1>
+  <div id="stats" class="mono"></div>
 </header>
 
 <main>
   <div id="side">
-    <div class="card" id="cardA"></div>
-    <div class="card" id="cardB"></div>
+    <div id="cards"></div>
+    <div class="card">
+      <div class="btns"><button id="btnAddLot">+ Add lot</button></div>
+      <div class="note">A new lot starts as a 150 × 150 ft placeholder — give it a real boundary with Address lookup or paste-import below.</div>
+    </div>
 
     <div class="card">
       <h2>View</h2>
@@ -201,11 +200,11 @@
     <div class="card">
       <h2>Address lookup (Indiana)</h2>
       <div class="ll">
-        <input id="addrInput" placeholder="9034 W Mallory Rd, Bloomington" aria-label="Indiana street address">
+        <input id="addrInput" placeholder="7243 N Red Hill Rd, Ellettsville" aria-label="Indiana street address">
       </div>
       <div class="btns">
-        <button id="fetchA">Fetch parcel → <span style="color:var(--a)">■</span> A</button>
-        <button id="fetchB">Fetch parcel → <span style="color:var(--b)">■</span> B</button>
+        <select id="fetchTarget" aria-label="Load parcel into which lot"></select>
+        <button id="btnFetch">Fetch parcel into lot</button>
       </div>
       <div id="addrStatus" class="status" role="status"></div>
       <div class="note">Queries the official IndianaMap parcel layer live (needs internet). Falls back to geocoding if the address text doesn't match a parcel record.</div>
@@ -227,8 +226,8 @@
       </ol>
       <textarea id="importText" placeholder='{"type":"FeatureCollection","features":[…]}' aria-label="Paste boundary JSON"></textarea>
       <div class="btns">
-        <button id="impA">Import as <span style="color:var(--a)">■</span> A</button>
-        <button id="impB">Import as <span style="color:var(--b)">■</span> B</button>
+        <select id="impTarget" aria-label="Import into which lot"></select>
+        <button id="btnImp">Import into lot</button>
       </div>
       <div id="importErr" role="alert"></div>
     </details>
@@ -245,7 +244,7 @@
 </main>
 
 <footer>
-  Boundaries are the <b>official surveyed parcels</b> from the IndianaMap statewide layer (Parcel_Boundaries_of_Indiana_Current, fetched 2026-07-18), shown at true relative scale in feet. Each lot's north arrow rotates with it. Satellite © Esri World Imagery · street map © OpenStreetMap contributors (or Google when a Map Tiles key is configured) · geocoding © Nominatim.
+  Boundaries are the <b>official surveyed parcels</b> from the IndianaMap statewide layer (Parcel_Boundaries_of_Indiana_Current; Red Hill fetched 2026-09-13, the others 2026-07-18), shown at true relative scale in feet. Each lot's north arrow rotates with it. Satellite © Esri World Imagery · street map © OpenStreetMap contributors (or Google when a Map Tiles key is configured) · geocoding © Nominatim.
 </footer>
 
 <script>
@@ -302,24 +301,28 @@ function ringToFeetGeo(ring){
 }
 
 // ---------- model ----------
-// Official IndianaMap parcel rings (WGS84 lon/lat), fetched 2026-07-18.
-const RAW = {
-  A:{ name:'9034 W Mallory Rd', id:'53-04-20-201-003.000-011',
-      ring:[[-86.6656214,39.2022878],[-86.665631,39.2029952],[-86.6667571,39.2029992],[-86.6672202,39.2030008],[-86.6677303,39.2022948],[-86.6656214,39.2022878]] },
-  B:{ name:'5120 N Capitol Ave', id:'53-04-11-302-004.000-013',
-      ring:[[-86.6091776,39.226041],[-86.6094884,39.2260508],[-86.609481,39.2253459],[-86.6093132,39.2252478],[-86.6089459,39.2251825],[-86.6089558,39.2260341],[-86.6091776,39.226041]] },
-};
-const gA=ringToFeetGeo(RAW.A.ring), gB=ringToFeetGeo(RAW.B.ring);
-const parcels = [
-  { key:'A', name:RAW.A.name, colorVar:'--a',
-    poly:gA.pts, geo:{lat:gA.lat,lon:gA.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
-    layers:{}, layerLoading:{}, layerError:{},
-    note:`Official parcel ${RAW.A.id} — IndianaMap current parcel layer.` },
-  { key:'B', name:RAW.B.name, colorVar:'--b',
-    poly:gB.pts, geo:{lat:gB.lat,lon:gB.lon}, pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
-    layers:{}, layerLoading:{}, layerError:{},
-    note:`Official parcel ${RAW.B.id} — IndianaMap current parcel layer.` },
+// Official IndianaMap parcel rings (WGS84 lon/lat).
+// Red Hill fetched 2026-09-13; Capitol Ave and Mallory Rd fetched 2026-07-18.
+const RAW = [
+  { name:'7243 N Red Hill Rd', id:'53-03-33-400-017.000-001',
+    ring:[[-86.6347415,39.2585025],[-86.6347369,39.2582659],[-86.6354740,39.2582687],[-86.6354683,39.2580319],[-86.6362772,39.2580350],[-86.6362763,39.2581777],[-86.6370734,39.2581805],[-86.6370794,39.2586039],[-86.6364868,39.2586044],[-86.6356746,39.2586050],[-86.6347430,39.2586056],[-86.6347415,39.2585025]] },
+  { name:'5120 N Capitol Ave', id:'53-04-11-302-004.000-013',
+    ring:[[-86.6091776,39.226041],[-86.6094884,39.2260508],[-86.609481,39.2253459],[-86.6093132,39.2252478],[-86.6089459,39.2251825],[-86.6089558,39.2260341],[-86.6091776,39.226041]] },
+  { name:'9034 W Mallory Rd', id:'53-04-20-201-003.000-011',
+    ring:[[-86.6656214,39.2022878],[-86.665631,39.2029952],[-86.6667571,39.2029992],[-86.6672202,39.2030008],[-86.6677303,39.2022948],[-86.6656214,39.2022878]] },
 ];
+const COLORS = ['--a','--b','--c','--d','--e','--f'];
+const keyFor = i => String.fromCharCode(65 + i);
+const baseLot = i => ({ key:keyFor(i), colorVar:COLORS[i%COLORS.length],
+  pos:{x:0,y:0}, rot:0, opacity:.55, visible:true, editing:false,
+  layers:{}, layerLoading:{}, layerError:{} });
+function lotFromRaw(raw, i){
+  const g = ringToFeetGeo(raw.ring);
+  return Object.assign(baseLot(i), { name:raw.name, poly:g.pts, geo:{lat:g.lat,lon:g.lon},
+    note:`Official parcel ${raw.id} — IndianaMap current parcel layer.` });
+}
+const parcels = RAW.map(lotFromRaw);
+const reindex = () => parcels.forEach((p,i)=>{ p.key=keyFor(i); p.colorVar=COLORS[i%COLORS.length]; });
 const view = { cx:0, cy:0, s:1 };           // s = px per ft
 const show = { grid:true, compass:true, lengths:true, layer:'fill', lcTint:false, rings:false }; // layer: fill | sat | street
 const ctxSquare = { on:false, acres:10 };   // same-size neighborhood square behind each lot
@@ -619,18 +622,47 @@ if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListene
 // ---------- readouts ----------
 const fmt=n=>Math.round(n).toLocaleString();
 function updateReadouts(){
-  const A=areaOf(parcels[0].poly), B=areaOf(parcels[1].poly);
-  $('#statA').textContent=`${fmt(A)} ft² · ${(A/SQFT_ACRE).toFixed(2)} ac`;
-  $('#statB').textContent=`${fmt(B)} ft² · ${(B/SQFT_ACRE).toFixed(2)} ac`;
-  const big=A>=B?parcels[0]:parcels[1], ratio=Math.max(A,B)/Math.max(1,Math.min(A,B));
-  $('#statRatio').textContent=`${big.name.split(' ').slice(-2).join(' ')} ≈ ${ratio.toFixed(1)}× larger`;
-  $('#hNameA').textContent=parcels[0].name; $('#hNameB').textContent=parcels[1].name;
+  const areas = parcels.map(p=>areaOf(p.poly));
+  const tail = n => n.split(' ').slice(-2).join(' ');
+
+  const h = $('#hNames'); h.textContent='';
+  parcels.forEach((p,i)=>{
+    if(i){ const v=document.createElement('span'); v.className='vs'; v.textContent='vs'; h.appendChild(v); }
+    const s=document.createElement('span'); s.style.color=`var(${p.colorVar})`; s.textContent=p.name; h.appendChild(s);
+  });
+
+  const st = $('#stats'); st.textContent='';
+  parcels.forEach((p,i)=>{
+    const wrap=document.createElement('span');
+    const dot=document.createElement('span'); dot.className='dot'; dot.style.background=`var(${p.colorVar})`;
+    const b=document.createElement('b'); b.textContent=`${fmt(areas[i])} ft² · ${(areas[i]/SQFT_ACRE).toFixed(2)} ac`;
+    wrap.append(dot,b); st.appendChild(wrap);
+  });
+  if(parcels.length>1){
+    const mx=Math.max(...areas), mn=Math.min(...areas);
+    const r=document.createElement('span'); r.id='statRatio';
+    r.textContent=`${tail(parcels[areas.indexOf(mx)].name)} ≈ ${(mx/Math.max(1,mn)).toFixed(1)}× ${tail(parcels[areas.indexOf(mn)].name)}`;
+    st.appendChild(r);
+  }
+  document.title = 'Lot Overlay — ' + parcels.map(p=>p.name).join(' vs ');
+
   parcels.forEach(p=>{
     p.el.area.textContent=`${fmt(areaOf(p.poly))} ft² (${(areaOf(p.poly)/SQFT_ACRE).toFixed(2)} ac)`;
     p.el.perim.textContent=`${fmt(perimOf(p.poly))} ft`;
     p.el.note.textContent=p.note;
   });
+  refreshTargets();
   updateCompare();
+}
+
+// Keep the "which lot?" pickers in sync with the current lot list.
+function refreshTargets(){
+  for(const sel of [$('#fetchTarget'), $('#impTarget')]){
+    if(!sel) continue;
+    const keep=sel.value;
+    sel.innerHTML=parcels.map((p,i)=>`<option value="${i}">${p.key} · ${p.name.replace(/</g,'&lt;')}</option>`).join('');
+    sel.value = (keep!=='' && +keep < parcels.length) ? keep : String(Math.min(selected, parcels.length-1));
+  }
 }
 
 // ---------- parcel cards ----------
@@ -646,6 +678,7 @@ function buildCard(p, idx, host){
     <div class="btns">
       <button data-act="edit" aria-pressed="false">Edit shape</button>
       <button data-act="reset">Reset rotation</button>
+      ${parcels.length>1?'<button data-act="del">Remove lot</button>':''}
     </div>
     <div class="rectset">
       <span>Rectangle:</span>
@@ -681,10 +714,29 @@ function buildCard(p, idx, host){
     p.note=`Custom rectangle ${w} × ${d} ft (no geo reference — imagery unavailable).`;
     updateReadouts(); draw();
   });
+  const del=host.querySelector('[data-act=del]');
+  if(del) del.addEventListener('click',e=>{
+    e.stopPropagation();
+    parcels.splice(idx,1); reindex();
+    selected=Math.max(0,Math.min(selected,parcels.length-1));
+    renderCards(); updateReadouts(); fitView();
+  });
   host.addEventListener('pointerdown',()=>{selected=idx; draw();});
 }
-buildCard(parcels[0],0,$('#cardA'));
-buildCard(parcels[1],1,$('#cardB'));
+function renderCards(){
+  const host=$('#cards'); host.textContent='';
+  parcels.forEach((p,i)=>{
+    const el=document.createElement('div'); el.className='card';
+    host.appendChild(el); buildCard(p,i,el);
+  });
+}
+renderCards();
+$('#btnAddLot').addEventListener('click',()=>{
+  const i=parcels.length;
+  parcels.push(Object.assign(baseLot(i), { name:'Lot '+keyFor(i), poly:rect(150,150), geo:null,
+    note:'New lot — 150 × 150 ft placeholder. Load a real boundary with Address lookup or paste-import.' }));
+  selected=i; renderCards(); updateReadouts(); fitView();
+});
 
 // ---------- view buttons ----------
 $('#ckGrid').addEventListener('change',e=>{show.grid=e.target.checked;draw();});
@@ -724,12 +776,17 @@ $('#ctxAcres').addEventListener('change',e=>{
   if(ctxSquare.on) refreshContext();
 });
 $('#btnFit').addEventListener('click',fitView);
-$('#btnStack').addEventListener('click',()=>{parcels[1].pos={...parcels[0].pos}; fitView();});
+$('#btnStack').addEventListener('click',()=>{const a={...parcels[0].pos}; parcels.forEach(p=>p.pos={...a}); fitView();});
 $('#btnSide').addEventListener('click',()=>{
-  const wA=worldPts(parcels[0]), wB=worldPts(parcels[1]);
-  const spanA=Math.max(...wA.map(p=>p.x))-Math.min(...wA.map(p=>p.x));
-  const spanB=Math.max(...wB.map(p=>p.x))-Math.min(...wB.map(p=>p.x));
-  parcels[1].pos={x:parcels[0].pos.x+spanA/2+spanB/2+40, y:parcels[0].pos.y}; fitView();
+  const spanOf=p=>{const w=worldPts(p); return Math.max(...w.map(q=>q.x))-Math.min(...w.map(q=>q.x));};
+  const y=parcels[0].pos.y; let x=parcels[0].pos.x, prevHalf=spanOf(parcels[0])/2;
+  parcels.forEach((p,i)=>{
+    if(i===0) return;
+    const half=spanOf(p)/2;
+    x += prevHalf + half + 40; prevHalf = half;
+    p.pos={x, y};
+  });
+  fitView();
 });
 const zoomAt=(f,sx,sy)=>{
   const w=S2W({x:sx,y:sy});
@@ -872,7 +929,7 @@ function applyParcelFeature(p, feat, sourceNote){
 async function lookupAddress(idx){
   const q=$('#addrInput').value.trim();
   if(!q){ setStatus('Type an Indiana street address first.',true); return; }
-  const btns=[$('#fetchA'),$('#fetchB')]; btns.forEach(b=>b.disabled=true);
+  const btns=[$('#btnFetch')]; btns.forEach(b=>b.disabled=true);
   try{
     setStatus('Searching the parcel layer by address…');
     const norm=normalizeAddr(q);
@@ -903,8 +960,7 @@ async function lookupAddress(idx){
     btns.forEach(b=>b.disabled=false);
   }
 }
-$('#fetchA').addEventListener('click',()=>lookupAddress(0));
-$('#fetchB').addEventListener('click',()=>lookupAddress(1));
+$('#btnFetch').addEventListener('click',()=>lookupAddress(+$('#fetchTarget').value||0));
 $('#addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') lookupAddress(selected); });
 
 // ---------- compare table & privacy (neighbor roofs) ----------
@@ -915,6 +971,14 @@ const ATTRS_KEY='pbc-attrs';
 const MANUAL=[['Beds','beds'],['Baths','baths'],['Finished sqft','sqft'],['Year built','year'],['Price','price']];
 const loadAttrs=()=>{try{return JSON.parse(localStorage.getItem(ATTRS_KEY))||{}}catch(_){return {}}};
 const saveAttr=(name,field,val)=>{try{const a=loadAttrs();(a[name]=a[name]||{})[field]=val;localStorage.setItem(ATTRS_KEY,JSON.stringify(a));}catch(_){}};
+// Seed listing fields for the preloaded Red Hill lot — fills blanks only, never overwrites your edits.
+(()=>{try{
+  const seed={'7243 N Red Hill Rd':{beds:'4',baths:'3 (2f/1h)',sqft:'2947',year:'2018',price:'$629,000'}};
+  const a=loadAttrs(); let dirty=false;
+  for(const [nm,f] of Object.entries(seed)){ a[nm]=a[nm]||{};
+    for(const [k,v] of Object.entries(f)) if(!a[nm][k]){ a[nm][k]=v; dirty=true; } }
+  if(dirty) localStorage.setItem(ATTRS_KEY,JSON.stringify(a));
+}catch(_){}})();
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 const privVal=(p,fn)=>p.privacy?fn(p.privacy):'–';
 
@@ -937,16 +1001,16 @@ function updateCompare(){
     ['Nearest major road', p=>privVal(p,v=>v.roadMajor?fmt(v.roadMajor.d)+' ft ('+esc(v.roadMajor.label)+' · '+v.roadMajor.cls+')':'none ≤ 2 mi')],
     ['Road noise (rough)', p=>privVal(p,v=>v.noise?'~'+v.noise.db+' dB · '+noiseCat(v.noise.db):'–')],
   ];
-  const rows=['<tr><th></th><th style="color:var(--a)">'+esc(parcels[0].key)+'</th><th style="color:var(--b)">'+esc(parcels[1].key)+'</th></tr>'];
+  const rows=['<tr><th></th>'+parcels.map(p=>'<th style="color:var('+p.colorVar+')">'+esc(p.key)+'</th>').join('')+'</tr>'];
   for(const [label,fn] of auto)
-    rows.push('<tr><td>'+label+'</td><td class="mono">'+fn(parcels[0])+'</td><td class="mono">'+fn(parcels[1])+'</td></tr>');
+    rows.push('<tr><td>'+label+'</td>'+parcels.map(p=>'<td class="mono">'+fn(p)+'</td>').join('')+'</tr>');
   for(const [label,field] of MANUAL){
-    const cell=p=>'<td><input data-attr="'+field+'" data-p="'+p.key+'" value="'+esc((attrs[p.name]||{})[field]||'')+'" aria-label="'+label+' for '+esc(p.name)+'"></td>';
-    rows.push('<tr><td>'+label+'</td>'+cell(parcels[0])+cell(parcels[1])+'</tr>');
+    const cell=(p,i)=>'<td><input data-attr="'+field+'" data-i="'+i+'" value="'+esc((attrs[p.name]||{})[field]||'')+'" aria-label="'+label+' for '+esc(p.name)+'"></td>';
+    rows.push('<tr><td>'+label+'</td>'+parcels.map(cell).join('')+'</tr>');
   }
   t.innerHTML=rows.join('');
   t.querySelectorAll('input[data-attr]').forEach(inp=>inp.addEventListener('input',e=>{
-    const p=parcels[e.target.dataset.p==='A'?0:1];
+    const p=parcels[+e.target.dataset.i];
     saveAttr(p.name,e.target.dataset.attr,e.target.value);
   }));
 }
@@ -1186,8 +1250,7 @@ function doImport(idx){
     err.textContent="Couldn't read that. Paste GeoJSON, ArcGIS JSON with \"rings\", or plain lat/lon pairs (3+ points).";
   }
 }
-$('#impA').addEventListener('click',()=>doImport(0));
-$('#impB').addEventListener('click',()=>doImport(1));
+$('#btnImp').addEventListener('click',()=>doImport(+$('#impTarget').value||0));
 
 // ---------- init ----------
 updateReadouts();
